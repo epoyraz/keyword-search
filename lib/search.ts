@@ -30,6 +30,8 @@ export type SortMode = "relevance" | "date" | "matches";
 export interface Filters {
   company?: string;
   employmentType?: string;
+  /** ISO date (YYYY-MM-DD); keep only postings on/after this date. */
+  postedAfter?: string;
 }
 
 // Default MiniSearch tokenization strips "#", "+", "." etc., which collapses
@@ -89,7 +91,9 @@ export function ensureLoaded(): Promise<void> {
         combineWith: "AND",
       },
     });
-    mini.addAll(jobs);
+    // Async, chunked indexing yields to the event loop so the page stays
+    // responsive while building the index for the full corpus (~17k+ docs).
+    await mini.addAllAsync(jobs, { chunkSize: 1000 });
 
     const companies = Array.from(new Set(jobs.map((j) => j.company)))
       .filter(Boolean)
@@ -108,6 +112,11 @@ function passesFilters(job: Job, filters: Filters): boolean {
   if (filters.company && job.company !== filters.company) return false;
   if (filters.employmentType && job.employmentType !== filters.employmentType)
     return false;
+  if (filters.postedAfter) {
+    // ISO dates compare lexicographically; undated postings are dropped when a
+    // recency window is active since we can't confirm they're recent.
+    if (!job.datePosted || job.datePosted < filters.postedAfter) return false;
+  }
   return true;
 }
 
@@ -121,103 +130,202 @@ export interface SearchOutcome {
   ms: number;
 }
 
-/** Pull "quoted phrases" out of a query, leaving the loose words behind. */
-function parseQuery(q: string): { phrases: string[]; loose: string } {
-  const phrases: string[] = [];
-  const loose = q
-    .replace(/"([^"]*)"/g, (_, p: string) => {
-      const t = p.trim();
-      if (t) phrases.push(t);
-      return " ";
-    })
-    .trim();
-  return { phrases, loose };
+function searchableText(j: Job): string {
+  return `${j.title} ${j.company} ${j.location} ${j.org} ${j.description}`.toLowerCase();
 }
 
-function searchableText(j: Job): string {
-  return `${j.title} ${j.company} ${j.location} ${j.description}`.toLowerCase();
+// --- query language --------------------------------------------------------
+// Supported syntax:
+//   foo bar          → AND (all terms)
+//   foo OR bar        → OR (any term)
+//   "foo bar"         → exact phrase
+//   -foo  /  NOT foo  → exclude
+//   field:foo         → scope to a field (title|company|location|type|desc)
+//   field:"foo bar"   → scoped exact phrase   (also -company:Roche, etc.)
+
+const FIELD_ALIASES: Record<string, Array<keyof Job>> = {
+  title: ["title"],
+  company: ["company", "org"],
+  org: ["org"],
+  location: ["location"],
+  loc: ["location"],
+  type: ["employmentType"],
+  desc: ["description"],
+  description: ["description"],
+};
+const ALL_TEXT_FIELDS: Array<keyof Job> = [
+  "title",
+  "company",
+  "org",
+  "location",
+  "description",
+];
+
+interface Clause {
+  neg: boolean;
+  fields?: Array<keyof Job>;
+  fieldName?: string;
+  value: string;
+  phrase: boolean;
+}
+
+/** Split a query into tokens, keeping quoted runs (and their field:/- prefixes) whole. */
+function scanTokens(input: string): string[] {
+  const tokens: string[] = [];
+  let buf = "";
+  let inQuote = false;
+  for (const ch of input) {
+    if (ch === '"') {
+      inQuote = !inQuote;
+      buf += ch;
+    } else if (ch === " " && !inQuote) {
+      if (buf) tokens.push(buf);
+      buf = "";
+    } else {
+      buf += ch;
+    }
+  }
+  if (buf) tokens.push(buf);
+  return tokens;
+}
+
+function parseAdvanced(input: string): { clauses: Clause[]; orMode: boolean } {
+  const clauses: Clause[] = [];
+  let orMode = false;
+  let pendingNeg = false;
+
+  for (const raw of scanTokens(input)) {
+    if (raw === "OR") {
+      orMode = true;
+      continue;
+    }
+    if (raw === "NOT") {
+      pendingNeg = true;
+      continue;
+    }
+    let tok = raw;
+    let neg = pendingNeg;
+    pendingNeg = false;
+    if (tok.startsWith("-") && tok.length > 1) {
+      neg = true;
+      tok = tok.slice(1);
+    }
+
+    let fields: Array<keyof Job> | undefined;
+    let fieldName: string | undefined;
+    const colon = tok.indexOf(":");
+    if (colon > 0) {
+      const name = tok.slice(0, colon).toLowerCase();
+      if (FIELD_ALIASES[name]) {
+        fields = FIELD_ALIASES[name];
+        fieldName = name;
+        tok = tok.slice(colon + 1);
+      }
+    }
+
+    const phrase = tok.startsWith('"') && tok.endsWith('"');
+    const value = (phrase ? tok.slice(1, -1) : tok).trim();
+    if (!value) continue;
+    clauses.push({ neg, fields, fieldName, value, phrase });
+  }
+  return { clauses, orMode };
+}
+
+/** Does a job satisfy a single clause (ignoring its negation)? */
+function clauseMatches(job: Job, c: Clause): boolean {
+  const fields = c.fields ?? ALL_TEXT_FIELDS;
+  const val = c.value.toLowerCase();
+  if (c.phrase) {
+    return fields.some((f) => String(job[f] ?? "").toLowerCase().includes(val));
+  }
+  const valTok = processTerm(val) ?? val;
+  return fields.some((f) =>
+    tokenize(String(job[f] ?? "")).some((t) =>
+      (processTerm(t) ?? "").startsWith(valTok),
+    ),
+  );
 }
 
 /**
- * Run a query. Empty query returns the full corpus (filtered + sorted),
- * matching hnsearch's "browse everything when the box is empty" behaviour.
- *
- * Wrapping part of the query in double quotes makes it an exact-phrase match:
- * matching becomes strict (no prefix/fuzzy expansion) and every quoted phrase
- * must appear verbatim in the posting's text. e.g. `".Net"` excludes "Netz".
+ * Run a query against the in-memory index. Supports AND (default), OR, quoted
+ * exact phrases, `-`/`NOT` exclusion, and `field:term` scoping. An empty query
+ * browses the whole corpus (filtered + sorted), like hnsearch.
  */
 export function search(
   query: string,
   { sort, filters }: { sort: SortMode; filters: Filters },
 ): SearchOutcome {
   const start = performance.now();
-  const q = query.trim();
+  const { clauses, orMode } = parseAdvanced(query.trim());
+
   let hits: Hit[];
 
-  if (!q) {
+  if (clauses.length === 0) {
     hits = jobs
       .filter((j) => passesFilters(j, filters))
       .sort(byDateDesc)
       .map((j) => ({ ...j, score: 0, terms: [], matched: [] }));
   } else {
-    const { phrases, loose } = parseQuery(q);
-    const exact = phrases.length > 0;
+    const positives = clauses.filter((c) => !c.neg);
+    const negatives = clauses.filter((c) => c.neg);
+    const freeText = positives.filter((c) => !c.fields);
+    const fieldPos = positives.filter((c) => c.fields);
+    // Free-text quoted phrases are enforced for adjacency in AND mode.
+    const freeTextPhrases = freeText
+      .filter((c) => c.phrase)
+      .map((c) => c.value.toLowerCase());
 
-    // An uppercase "OR" token (outside quotes) switches to OR matching: any
-    // term may match instead of all. Default stays AND. Strip the OR tokens.
-    const orMode = /(?:^|\s)OR(?:\s|$)/.test(loose);
-    const looseClean = orMode
-      ? loose.replace(/(?:^|\s)OR(?=\s|$)/g, " ").replace(/\s+/g, " ").trim()
-      : loose;
-
-    const msQuery = [...phrases, looseClean].filter(Boolean).join(" ");
-
-    // Build only the options we want to override; the rest (boost, and in
-    // loose mode prefix/fuzzy) fall back to the constructor defaults.
-    const opts: Record<string, unknown> = {};
-    if (exact) {
-      opts.prefix = false;
-      opts.fuzzy = false;
-    }
-    if (orMode) opts.combineWith = "OR";
-
-    const results: SearchResult[] = mini
-      ? mini.search(msQuery, Object.keys(opts).length ? opts : undefined)
-      : [];
-
-    const lowerPhrases = phrases.map((p) => p.toLowerCase());
-    // For exact queries, highlight whole phrases (as units) plus the loose
-    // words — never the phrases' individual tokens, which would over-highlight.
-    const looseTerms = looseClean ? tokenize(looseClean) : [];
-
-    // Map each processed token back to the original-cased word the user typed,
-    // so matched-term tags read "Python" / ".NET" rather than "python" / ".net".
+    // Map processed tokens back to original-cased words for the matched tags.
     const displayMap = new Map<string, string>();
-    for (const word of looseClean.split(/\s+/)) {
-      if (!word) continue;
-      for (const tok of tokenize(word)) {
-        const key = processTerm(tok);
-        if (key && !displayMap.has(key)) displayMap.set(key, word);
+    for (const c of [...freeText, ...fieldPos]) {
+      for (const word of c.value.split(/\s+/)) {
+        for (const tok of tokenize(word)) {
+          const key = processTerm(tok);
+          if (key && !displayMap.has(key)) displayMap.set(key, word);
+        }
       }
     }
+
+    // Candidate retrieval: MiniSearch ranks free-text positives; if there are
+    // none (pure field/exclusion query) we scan the corpus and post-filter.
+    let candidates: Array<{ job: Job; score: number; terms: string[] }>;
+    if (freeText.length && mini) {
+      const msQuery = freeText.map((c) => c.value).join(" ");
+      const results: SearchResult[] = mini.search(
+        msQuery,
+        orMode ? { combineWith: "OR" } : undefined,
+      );
+      candidates = [];
+      for (const r of results) {
+        const job = byId.get(r.id as string);
+        if (job) candidates.push({ job, score: r.score, terms: r.terms });
+      }
+    } else {
+      candidates = jobs.map((job) => ({ job, score: 0, terms: [] }));
+    }
+
+    // Terms used for highlighting: every positive value / token.
+    const hlTerms = positives.flatMap((c) =>
+      c.phrase ? [c.value] : tokenize(c.value),
+    );
 
     hits = [];
-    for (const r of results) {
-      const job = byId.get(r.id as string);
-      if (!job || !passesFilters(job, filters)) continue;
-      // In AND mode, enforce verbatim presence of every quoted phrase (handles
-      // adjacency for multi-word phrases and exactness for tokens like ".net").
-      // In OR mode the phrases are just alternatives, so don't require them.
-      if (exact && !orMode) {
+    for (const { job, score, terms } of candidates) {
+      if (!passesFilters(job, filters)) continue;
+      // AND mode: each free-text phrase must appear verbatim (adjacency).
+      if (!orMode && freeTextPhrases.length) {
         const text = searchableText(job);
-        if (!lowerPhrases.every((p) => text.includes(p))) continue;
+        if (!freeTextPhrases.every((p) => text.includes(p))) continue;
       }
-      const terms = exact ? [...phrases, ...looseTerms] : r.terms;
-      // Distinct matched query terms, original-cased, for the tags column.
-      const matched = Array.from(new Set(r.terms)).map(
+      // Field-scoped positives are always required (filters).
+      if (!fieldPos.every((c) => clauseMatches(job, c))) continue;
+      // Exclusions remove any job matching a negated clause.
+      if (negatives.some((c) => clauseMatches(job, c))) continue;
+
+      const matched = Array.from(new Set(terms)).map(
         (t) => displayMap.get(t) ?? t,
       );
-      hits.push({ ...job, score: r.score, terms, matched });
+      hits.push({ ...job, score, terms: hlTerms, matched });
     }
 
     if (sort === "matches") {
@@ -226,8 +334,11 @@ export function search(
       );
     } else if (sort === "date") {
       hits.sort(byDateDesc);
+    } else if (!freeText.length) {
+      // No ranking signal without free-text terms → newest first.
+      hits.sort(byDateDesc);
     }
-    // relevance is MiniSearch's native order, so leave as-is
+    // otherwise keep MiniSearch's relevance order
   }
 
   return { hits, total: hits.length, ms: performance.now() - start };

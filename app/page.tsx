@@ -44,12 +44,38 @@ export default function Home() {
   const [sort, setSort] = useState<SortMode>("relevance");
   const [company, setCompany] = useState("");
   const [employmentType, setEmploymentType] = useState("");
+  const [days, setDays] = useState(0); // posted-within window; 0 = any time
+  const [postedAfter, setPostedAfter] = useState<string | undefined>(undefined);
   const [limit, setLimit] = useState(PAGE_SIZE);
+  const [hydrated, setHydrated] = useState(false);
+
+  // Set the recency window + its cutoff date together (Date.now() is impure, so
+  // it must be called from an event/effect, never during render).
+  const chooseDays = (d: number) => {
+    setDays(d);
+    setPostedAfter(
+      d ? new Date(Date.now() - d * 86_400_000).toISOString().slice(0, 10) : undefined,
+    );
+  };
 
   const debouncedQuery = useDebounced(query, 120);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Hydrate state from the URL once, then load the index. Reading the URL must
+  // happen after hydration (an effect, not a lazy initializer) so the first
+  // client render still matches the static HTML — hence the rule exception.
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- syncing initial state from the URL */
+    const p = new URLSearchParams(window.location.search);
+    if (p.has("q")) setQuery(p.get("q") ?? "");
+    const s = p.get("sort");
+    if (s === "relevance" || s === "date" || s === "matches") setSort(s);
+    if (p.has("company")) setCompany(p.get("company") ?? "");
+    if (p.has("type")) setEmploymentType(p.get("type") ?? "");
+    const d = Number(p.get("days"));
+    if (Number.isFinite(d) && d > 0) chooseDays(d);
+    setHydrated(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
     ensureLoaded()
       .then(() => {
         setReady(true);
@@ -58,9 +84,23 @@ export default function Home() {
       .catch((e) => setError(String(e)));
   }, []);
 
+  // Reflect state in the URL so a search is shareable/bookmarkable. replaceState
+  // keeps it out of the back-button history.
+  useEffect(() => {
+    if (!hydrated) return;
+    const p = new URLSearchParams();
+    if (query) p.set("q", query);
+    if (sort !== "relevance") p.set("sort", sort);
+    if (company) p.set("company", company);
+    if (employmentType) p.set("type", employmentType);
+    if (days) p.set("days", String(days));
+    const qs = p.toString();
+    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+  }, [hydrated, query, sort, company, employmentType, days]);
+
   // Reset pagination whenever the query or a filter changes (adjust state
   // during render, per React guidance, rather than in an effect).
-  const viewKey = `${debouncedQuery}|${sort}|${company}|${employmentType}`;
+  const viewKey = `${debouncedQuery}|${sort}|${company}|${employmentType}|${days}`;
   const [prevViewKey, setPrevViewKey] = useState(viewKey);
   if (viewKey !== prevViewKey) {
     setPrevViewKey(viewKey);
@@ -73,9 +113,9 @@ export default function Home() {
     if (!ready) return null;
     return search(debouncedQuery, {
       sort,
-      filters: { company, employmentType },
+      filters: { company, employmentType, postedAfter },
     });
-  }, [ready, debouncedQuery, sort, company, employmentType]);
+  }, [ready, debouncedQuery, sort, company, employmentType, postedAfter]);
 
   const visible: Hit[] = outcome ? outcome.hits.slice(0, limit) : [];
 
@@ -155,12 +195,29 @@ export default function Home() {
             </label>
           )}
 
-          {(company || employmentType || query) && (
+          <label className="flex items-center gap-1">
+            <span className="text-gray-500">Posted</span>
+            <select
+              value={days}
+              onChange={(e) => chooseDays(Number(e.target.value))}
+              className="rounded border border-gray-300 bg-white px-1.5 py-1"
+            >
+              <option value={0}>any time</option>
+              <option value={1}>past 24 hours</option>
+              <option value={7}>past week</option>
+              <option value={30}>past month</option>
+              <option value={90}>past 3 months</option>
+              <option value={365}>past year</option>
+            </select>
+          </label>
+
+          {(company || employmentType || query || days) && (
             <button
               onClick={() => {
                 setQuery("");
                 setCompany("");
                 setEmploymentType("");
+                chooseDays(0);
               }}
               className="text-orange-600 hover:underline"
             >
@@ -168,10 +225,11 @@ export default function Home() {
             </button>
           )}
 
-          <span className="hidden sm:inline text-gray-400">
-            tip: <code className="font-mono">&quot;exact phrase&quot;</code> ·{" "}
-            <code className="font-mono">a b</code> = AND ·{" "}
-            <code className="font-mono">a OR b</code>
+          <span className="hidden lg:inline text-gray-400">
+            tip: <code className="font-mono">&quot;exact&quot;</code> ·{" "}
+            <code className="font-mono">a OR b</code> ·{" "}
+            <code className="font-mono">-exclude</code> ·{" "}
+            <code className="font-mono">title:engineer</code>
           </span>
 
           <span className="ml-auto text-gray-500">
