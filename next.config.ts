@@ -13,17 +13,10 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // Tiny version pointer — must always be fresh.
+        // Tiny version pointer — must always be fresh. The big assets are
+        // served (with caching + content negotiation) by app/dl/[file]/route.ts.
         source: "/search-meta.json",
         headers: [{ key: "Cache-Control", value: "no-cache" }],
-      },
-      {
-        // Big assets are fetched with a ?v=<hash> query, so they can be cached
-        // forever; a data change bumps the hash and busts the cache.
-        source: "/:file(jobs.json|search-index.json)",
-        headers: [
-          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
-        ],
       },
     ];
   },

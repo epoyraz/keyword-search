@@ -37,8 +37,8 @@ function post(msg: WorkerResponse) {
 async function load(version: string) {
   const v = encodeURIComponent(version);
   const [docsRes, idxRes] = await Promise.all([
-    fetch(`/jobs.json?v=${v}`),
-    fetch(`/search-index.json?v=${v}`),
+    fetch(`/dl/jobs.json?v=${v}`),
+    fetch(`/dl/search-index.json?v=${v}`),
   ]);
   if (!docsRes.ok || !idxRes.ok) {
     throw new Error(`load failed: docs ${docsRes.status}, index ${idxRes.status}`);

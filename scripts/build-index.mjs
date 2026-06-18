@@ -10,6 +10,7 @@
 import { readdir, readFile, writeFile, stat, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { gzipSync, brotliCompressSync, constants as zlibConstants } from "node:zlib";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import MiniSearch from "minisearch";
@@ -228,15 +229,30 @@ async function main() {
 
   if (!existsSync(PUBLIC_DIR)) await mkdir(PUBLIC_DIR, { recursive: true });
 
+  // Write a file plus precompressed .gz and .br siblings. The /dl route handler
+  // serves whichever the client accepts (br → gzip → raw); brotli ~halves the
+  // transfer vs gzip and is far too slow to do per-request, so we do it here.
+  const writeVariants = async (file, str) => {
+    const buf = Buffer.from(str);
+    await writeFile(file, buf);
+    await writeFile(`${file}.gz`, gzipSync(buf, { level: 9 }));
+    await writeFile(
+      `${file}.br`,
+      brotliCompressSync(buf, {
+        params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 11 },
+      }),
+    );
+  };
+
   // 1. Doc store (display + snippets).
   const docsJson = JSON.stringify(jobs);
-  await writeFile(OUT_FILE, docsJson);
+  await writeVariants(OUT_FILE, docsJson);
 
   // 2. Prebuilt, serialized MiniSearch index — the browser deserializes this
   //    with loadJSON (≈6× faster than rebuilding from scratch on every load).
   const mini = new MiniSearch(miniSearchOptions());
   mini.addAll(jobs);
-  await writeFile(INDEX_FILE, JSON.stringify(mini));
+  await writeVariants(INDEX_FILE, JSON.stringify(mini));
 
   // 3. Tiny meta file: stats for the filter UI + a content hash to version the
   //    cached assets (so a data change busts the browser cache).
