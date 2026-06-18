@@ -9,13 +9,19 @@
 
 import { readdir, readFile, writeFile, stat, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import MiniSearch from "minisearch";
+import { miniSearchOptions } from "../lib/searchConfig.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 const DATA_DIR = path.resolve(ROOT, "..", "jobboard-data", "details");
-const OUT_FILE = path.resolve(ROOT, "public", "jobs.json");
+const PUBLIC_DIR = path.resolve(ROOT, "public");
+const OUT_FILE = path.resolve(PUBLIC_DIR, "jobs.json");
+const INDEX_FILE = path.resolve(PUBLIC_DIR, "search-index.json");
+const META_FILE = path.resolve(PUBLIC_DIR, "search-meta.json");
 
 // --- encoding repair -------------------------------------------------------
 // The scraped text is UTF-8 that was once decoded as Latin-1 and re-saved,
@@ -220,18 +226,45 @@ async function main() {
   // Sort newest first as the default ordering.
   jobs.sort((a, b) => (b.datePosted || "").localeCompare(a.datePosted || ""));
 
-  if (!existsSync(path.dirname(OUT_FILE))) {
-    await mkdir(path.dirname(OUT_FILE), { recursive: true });
-  }
-  await writeFile(OUT_FILE, JSON.stringify(jobs));
-  const { size } = await stat(OUT_FILE);
+  if (!existsSync(PUBLIC_DIR)) await mkdir(PUBLIC_DIR, { recursive: true });
 
-  const companyCount = new Set(jobs.map((j) => j.company)).size;
+  // 1. Doc store (display + snippets).
+  const docsJson = JSON.stringify(jobs);
+  await writeFile(OUT_FILE, docsJson);
+
+  // 2. Prebuilt, serialized MiniSearch index — the browser deserializes this
+  //    with loadJSON (≈6× faster than rebuilding from scratch on every load).
+  const mini = new MiniSearch(miniSearchOptions());
+  mini.addAll(jobs);
+  await writeFile(INDEX_FILE, JSON.stringify(mini));
+
+  // 3. Tiny meta file: stats for the filter UI + a content hash to version the
+  //    cached assets (so a data change busts the browser cache).
+  const version = createHash("sha1").update(docsJson).digest("hex").slice(0, 12);
+  const companyNames = Array.from(new Set(jobs.map((j) => j.company)))
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
+  const employmentTypes = Array.from(new Set(jobs.map((j) => j.employmentType)))
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
+  await writeFile(
+    META_FILE,
+    JSON.stringify({
+      total: jobs.length,
+      companies: companyNames,
+      employmentTypes,
+      version,
+    }),
+  );
+
+  const mb = async (f) => ((await stat(f)).size / 1024 / 1024).toFixed(1);
   console.log(
-    `\nIndexed ${jobs.length} jobs from ${companyCount} companies ` +
+    `\nIndexed ${jobs.length} jobs from ${companyNames.length} companies ` +
       `(scanned ${scanned} files, skipped ${skipped}).`,
   );
-  console.log(`Wrote ${OUT_FILE} — ${(size / 1024 / 1024).toFixed(1)} MB`);
+  console.log(`Wrote ${OUT_FILE} — ${await mb(OUT_FILE)} MB`);
+  console.log(`Wrote ${INDEX_FILE} — ${await mb(INDEX_FILE)} MB`);
+  console.log(`Wrote ${META_FILE} (version ${version})`);
 }
 
 main().catch((err) => {

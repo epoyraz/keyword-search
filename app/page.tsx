@@ -1,13 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  ensureLoaded,
-  getStats,
-  search,
-  type Hit,
-  type SortMode,
-} from "@/lib/search";
+import { useEffect, useRef, useState } from "react";
+import { loadIndex, search as runSearch } from "@/lib/searchClient";
+import type { Hit, IndexStats, SearchOutcome, SortMode } from "@/lib/types";
 import { highlight, snippet } from "@/lib/highlight";
 
 const PAGE_SIZE = 30;
@@ -48,6 +43,8 @@ export default function Home() {
   const [postedAfter, setPostedAfter] = useState<string | undefined>(undefined);
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [hydrated, setHydrated] = useState(false);
+  const [stats, setStats] = useState<IndexStats | null>(null);
+  const [outcome, setOutcome] = useState<SearchOutcome | null>(null);
 
   // Set the recency window + its cutoff date together (Date.now() is impure, so
   // it must be called from an event/effect, never during render).
@@ -76,8 +73,9 @@ export default function Home() {
     if (Number.isFinite(d) && d > 0) chooseDays(d);
     setHydrated(true);
     /* eslint-enable react-hooks/set-state-in-effect */
-    ensureLoaded()
-      .then(() => {
+    loadIndex()
+      .then((s) => {
+        setStats(s);
         setReady(true);
         inputRef.current?.focus();
       })
@@ -107,14 +105,20 @@ export default function Home() {
     setLimit(PAGE_SIZE);
   }
 
-  const stats = ready ? getStats() : null;
-
-  const outcome = useMemo(() => {
-    if (!ready) return null;
-    return search(debouncedQuery, {
+  // Run the search in the worker whenever inputs change; ignore stale responses.
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false;
+    runSearch({
+      query: debouncedQuery,
       sort,
       filters: { company, employmentType, postedAfter },
+    }).then((o) => {
+      if (!cancelled) setOutcome(o);
     });
+    return () => {
+      cancelled = true;
+    };
   }, [ready, debouncedQuery, sort, company, employmentType, postedAfter]);
 
   const visible: Hit[] = outcome ? outcome.hits.slice(0, limit) : [];
@@ -251,11 +255,15 @@ export default function Home() {
           </p>
         )}
 
-        {!ready && !error && (
-          <p className="text-gray-500">Building local index…</p>
+        {!error && !outcome && (
+          <p className="text-gray-500">
+            {stats
+              ? `Building local index (${stats.total.toLocaleString()} postings)…`
+              : "Loading…"}
+          </p>
         )}
 
-        {ready && outcome && outcome.total === 0 && (
+        {outcome && outcome.total === 0 && (
           <p className="text-gray-500">No matching job postings.</p>
         )}
 
