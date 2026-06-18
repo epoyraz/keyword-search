@@ -1,65 +1,280 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ensureLoaded,
+  getStats,
+  search,
+  type Hit,
+  type SortMode,
+} from "@/lib/search";
+import { highlight, snippet } from "@/lib/highlight";
+
+const PAGE_SIZE = 30;
+
+function useDebounced<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(id);
+  }, [value, delay]);
+  return debounced;
+}
+
+function fmtDate(d: string): string {
+  if (!d) return "";
+  const dt = new Date(d);
+  if (Number.isNaN(dt.getTime())) return d;
+  return dt.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function fmtType(t: string): string {
+  return t ? t.replace(/_/g, " ").toLowerCase() : "";
+}
 
 export default function Home() {
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<SortMode>("relevance");
+  const [company, setCompany] = useState("");
+  const [employmentType, setEmploymentType] = useState("");
+  const [limit, setLimit] = useState(PAGE_SIZE);
+
+  const debouncedQuery = useDebounced(query, 120);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    ensureLoaded()
+      .then(() => {
+        setReady(true);
+        inputRef.current?.focus();
+      })
+      .catch((e) => setError(String(e)));
+  }, []);
+
+  // Reset pagination whenever the query or a filter changes (adjust state
+  // during render, per React guidance, rather than in an effect).
+  const viewKey = `${debouncedQuery}|${sort}|${company}|${employmentType}`;
+  const [prevViewKey, setPrevViewKey] = useState(viewKey);
+  if (viewKey !== prevViewKey) {
+    setPrevViewKey(viewKey);
+    setLimit(PAGE_SIZE);
+  }
+
+  const stats = ready ? getStats() : null;
+
+  const outcome = useMemo(() => {
+    if (!ready) return null;
+    return search(debouncedQuery, {
+      sort,
+      filters: { company, employmentType },
+    });
+  }, [ready, debouncedQuery, sort, company, employmentType]);
+
+  const visible: Hit[] = outcome ? outcome.hits.slice(0, limit) : [];
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+    <div className="flex flex-col min-h-full">
+      {/* Header */}
+      <header className="sticky top-0 z-10 bg-[#ff6600] text-white shadow">
+        <div className="mx-auto max-w-4xl px-4 py-3 flex items-center gap-3">
+          <span className="font-mono font-bold text-lg whitespace-nowrap">
+            keyword-search
+          </span>
+          <div className="relative flex-1">
+            <input
+              ref={inputRef}
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={
+                stats
+                  ? `Search ${stats.total.toLocaleString()} job postings…`
+                  : "Loading…"
+              }
+              disabled={!ready}
+              className="w-full rounded-md border-0 px-3 py-2 text-black bg-white placeholder-gray-500 outline-none focus:ring-2 focus:ring-orange-300"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          </div>
         </div>
+      </header>
+
+      {/* Controls */}
+      <div className="border-b border-gray-200 bg-gray-50">
+        <div className="mx-auto max-w-4xl px-4 py-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-700">
+          <label className="flex items-center gap-1">
+            <span className="text-gray-500">Sort</span>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortMode)}
+              className="rounded border border-gray-300 bg-white px-1.5 py-1"
+            >
+              <option value="relevance">by relevance</option>
+              <option value="matches">by matches</option>
+              <option value="date">by date</option>
+            </select>
+          </label>
+
+          <label className="flex items-center gap-1">
+            <span className="text-gray-500">Company</span>
+            <select
+              value={company}
+              onChange={(e) => setCompany(e.target.value)}
+              className="rounded border border-gray-300 bg-white px-1.5 py-1 max-w-[14rem]"
+            >
+              <option value="">all</option>
+              {stats?.companies.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {stats && stats.employmentTypes.length > 0 && (
+            <label className="flex items-center gap-1">
+              <span className="text-gray-500">Type</span>
+              <select
+                value={employmentType}
+                onChange={(e) => setEmploymentType(e.target.value)}
+                className="rounded border border-gray-300 bg-white px-1.5 py-1"
+              >
+                <option value="">all</option>
+                {stats.employmentTypes.map((t) => (
+                  <option key={t} value={t}>
+                    {fmtType(t)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {(company || employmentType || query) && (
+            <button
+              onClick={() => {
+                setQuery("");
+                setCompany("");
+                setEmploymentType("");
+              }}
+              className="text-orange-600 hover:underline"
+            >
+              clear
+            </button>
+          )}
+
+          <span className="hidden sm:inline text-gray-400">
+            tip: <code className="font-mono">&quot;exact phrase&quot;</code> ·{" "}
+            <code className="font-mono">a b</code> = AND ·{" "}
+            <code className="font-mono">a OR b</code>
+          </span>
+
+          <span className="ml-auto text-gray-500">
+            {outcome
+              ? `${outcome.total.toLocaleString()} results (${outcome.ms.toFixed(
+                  1,
+                )} ms)`
+              : ""}
+          </span>
+        </div>
+      </div>
+
+      {/* Results */}
+      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-4">
+        {error && (
+          <p className="text-red-600">
+            Could not load the index: {error}. Run{" "}
+            <code className="font-mono">npm run index</code> first.
+          </p>
+        )}
+
+        {!ready && !error && (
+          <p className="text-gray-500">Building local index…</p>
+        )}
+
+        {ready && outcome && outcome.total === 0 && (
+          <p className="text-gray-500">No matching job postings.</p>
+        )}
+
+        <ol className="space-y-4">
+          {visible.map((hit) => (
+            <li key={hit.id} className="flex gap-4 leading-snug">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-[15px] font-medium">
+                  {hit.url ? (
+                    <a
+                      href={hit.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-900 hover:text-orange-600 hover:underline"
+                    >
+                      {highlight(hit.title, hit.terms)}
+                    </a>
+                  ) : (
+                    <span className="text-gray-900">
+                      {highlight(hit.title, hit.terms)}
+                    </span>
+                  )}
+                </h2>
+                <div className="mt-0.5 text-xs text-gray-500 flex flex-wrap gap-x-2 gap-y-0.5">
+                  <span className="font-medium text-orange-700">
+                    {hit.company}
+                  </span>
+                  {hit.location && <span>· {hit.location}</span>}
+                  {hit.employmentType && (
+                    <span>· {fmtType(hit.employmentType)}</span>
+                  )}
+                  {hit.datePosted && <span>· {fmtDate(hit.datePosted)}</span>}
+                </div>
+                {hit.description && (
+                  <p className="mt-1 text-[13px] text-gray-700">
+                    {highlight(snippet(hit.description, hit.terms), hit.terms)}
+                  </p>
+                )}
+              </div>
+
+              {hit.matched.length > 0 && (
+                <div className="hidden sm:flex w-44 shrink-0 flex-col items-end gap-1">
+                  <span className="text-[11px] font-semibold text-gray-400">
+                    {hit.matched.length} match
+                    {hit.matched.length > 1 ? "es" : ""}
+                  </span>
+                  <div className="flex flex-wrap justify-end gap-1">
+                    {hit.matched.map((m) => (
+                      <span
+                        key={m}
+                        className="rounded bg-orange-100 px-1.5 py-0.5 text-[11px] font-medium text-orange-800"
+                      >
+                        {m}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </li>
+          ))}
+        </ol>
+
+        {outcome && limit < outcome.total && (
+          <div className="mt-6 text-center">
+            <button
+              onClick={() => setLimit((l) => l + PAGE_SIZE)}
+              className="rounded border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            >
+              Show more ({(outcome.total - limit).toLocaleString()} remaining)
+            </button>
+          </div>
+        )}
       </main>
+
+      <footer className="border-t border-gray-200 py-4 text-center text-xs text-gray-400">
+        Fully local · indexed from scraped company HTML · no external API
+      </footer>
     </div>
   );
 }
