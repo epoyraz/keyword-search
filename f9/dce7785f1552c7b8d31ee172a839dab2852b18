@@ -1,0 +1,23 @@
+public/search-index.json
+  s_56083f5fd75e4f::t_55b916cf334252 1
+public/jobs.json
+  s_56083f5fd75e4f::t_55b916cf334252 1
+public/search-meta.json
+  s_56083f5fd75e4f::t_55b916cf334252 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "f9dce7785f1552c7b8d31ee172a839dab2852b18",
+  "prompts": {},
+  "sessions": {
+    "s_56083f5fd75e4f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "028e066e-07d8-4169-8415-18e8673c2a50",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
