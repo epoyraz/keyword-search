@@ -1,0 +1,32 @@
+public/search-meta.json
+  s_56083f5fd75e4f::t_0869dda89efe9b 1
+public/search-index.json
+  s_56083f5fd75e4f::t_0869dda89efe9b 1
+next.config.ts
+  s_56083f5fd75e4f::t_bf2edfa67fda9b 16-17
+public/jobs.json
+  s_56083f5fd75e4f::t_0869dda89efe9b 1
+lib/search.worker.ts
+  s_56083f5fd75e4f::t_c5edf8c2dd8bae 40-41
+app/dl/[file]/route.ts
+  s_56083f5fd75e4f::t_7fe2442e48fe9d 1-46
+scripts/build-index.mjs
+  s_56083f5fd75e4f::t_8419243bd21c2e 13
+  s_56083f5fd75e4f::t_6474291030bbad 232-246,249,255
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "c6519bad69d26f4fb45af04326e4b3b0ff24b842",
+  "prompts": {},
+  "sessions": {
+    "s_56083f5fd75e4f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "028e066e-07d8-4169-8415-18e8673c2a50",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
