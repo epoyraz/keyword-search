@@ -1,0 +1,23 @@
+next.config.ts
+  s_56083f5fd75e4f::t_5dc1a54dcc0fb8 4-5,7-12
+Dockerfile
+  s_56083f5fd75e4f::t_91ca1907ab1b12 1-25
+.gcloudignore
+  s_56083f5fd75e4f::t_a29fb7992bf3e4 1-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "9dd6c9417bd4a47c7f96da5beb039edcfce3fa70",
+  "prompts": {},
+  "sessions": {
+    "s_56083f5fd75e4f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "028e066e-07d8-4169-8415-18e8673c2a50",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
