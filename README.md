@@ -19,9 +19,25 @@ fetching a single static JSON file from `public/`.
    client-side in well under a millisecond. No server, no external API.
 
 3. **UI** (`app/page.tsx`) — search-as-you-type with matched-term highlighting,
-   context snippets, sort by relevance or date, company / employment-type
-   filters, a live result count + timing, and "show more" pagination. An empty
-   query browses everything (newest first).
+   context snippets, sort by relevance / matches / date, company /
+   employment-type / recency filters, matched-skill tags, a live result count +
+   timing, and "show more" pagination. The query, sort, and filters are synced
+   to the URL so any search is shareable. An empty query browses everything
+   (newest first).
+
+## Search syntax
+
+| Syntax | Meaning |
+|---|---|
+| `a b` | AND — both terms must match (default) |
+| `a OR b` | OR — either term matches |
+| `"machine learning"` | exact phrase |
+| `-intern` / `NOT intern` | exclude |
+| `title:engineer` | scope to a field: `title`, `company`, `location`, `type`, `desc` |
+| `company:"Insel Gruppe"` | scoped exact phrase |
+
+The tokenizer preserves `C#`, `.NET`, `node.js`, `C++`. Combine freely, e.g.
+`react OR vue -senior` or `company:Roche python`.
 
 ## Usage
 
