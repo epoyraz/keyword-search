@@ -1,0 +1,22 @@
+scripts/build-index.mjs
+  s_56083f5fd75e4f::t_d249d001af3647 36-48,52-54,61-63
+  s_56083f5fd75e4f::t_c670d4a28ea3ab 49-51,55-60,66-80
+public/jobs.json
+  s_56083f5fd75e4f::t_79da52d5210781 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "48ae9cc666c2c75feefe723401e789db6d68da31",
+  "prompts": {},
+  "sessions": {
+    "s_56083f5fd75e4f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "028e066e-07d8-4169-8415-18e8673c2a50",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
