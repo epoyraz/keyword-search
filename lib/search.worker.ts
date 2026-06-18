@@ -1,10 +1,12 @@
-// Search runs entirely in this Web Worker so the main thread never blocks:
-// it fetches the prebuilt index + docs, deserializes via MiniSearch.loadJSON
-// (far cheaper than re-indexing), and answers queries. Versioned URLs let the
-// browser cache serve repeat loads with no re-download.
+// Search runs entirely in this Web Worker so the main thread never blocks. It
+// fetches the prebuilt Rust/Wasm binary index + docs, instantiates the wasm
+// engine, loads the snapshot via MiniSearchWasm.loadBytes (far cheaper than
+// re-indexing — and than JSON), and answers queries with searchJoined, which
+// runs the whole search in wasm and returns a compact columnar result.
+// Versioned URLs let the browser cache serve repeat loads with no re-download.
 
-import MiniSearch, { type SearchResult } from "minisearch";
-import { miniSearchOptions, tokenize, processTerm } from "./searchConfig.mjs";
+import init, { MiniSearchWasm } from "./engine/minisearch_rust.js";
+import { tokenize, processTerm } from "./searchConfig.mjs";
 import type {
   Job,
   Hit,
@@ -17,7 +19,16 @@ import type {
 
 let jobs: Job[] = [];
 let byId = new Map<string, Job>();
-let mini: MiniSearch<Job> | null = null;
+let mini: MiniSearchWasm | null = null;
+
+// Shape returned by MiniSearchWasm.searchJoined: the whole result set as a
+// Float64Array of scores plus newline-joined id/term strings (split natively).
+interface JoinedResults {
+  count: number;
+  ids: string;
+  scores: Float64Array;
+  terms: string;
+}
 
 let resolveLoaded!: () => void;
 const loaded = new Promise<void>((r) => (resolveLoaded = r));
@@ -38,14 +49,17 @@ async function load(version: string) {
   const v = encodeURIComponent(version);
   const [docsRes, idxRes] = await Promise.all([
     fetch(`/dl/jobs.json?v=${v}`),
-    fetch(`/dl/search-index.json?v=${v}`),
+    fetch(`/dl/search-index.bin?v=${v}`),
   ]);
   if (!docsRes.ok || !idxRes.ok) {
     throw new Error(`load failed: docs ${docsRes.status}, index ${idxRes.status}`);
   }
   jobs = (await docsRes.json()) as Job[];
   byId = new Map(jobs.map((j) => [j.id, j]));
-  mini = MiniSearch.loadJSON<Job>(await idxRes.text(), miniSearchOptions());
+  // Instantiate the wasm engine (its module is a bundled asset), then load the
+  // prebuilt binary index snapshot.
+  await init();
+  mini = MiniSearchWasm.loadBytes(new Uint8Array(await idxRes.arrayBuffer()));
   resolveLoaded();
   post({ type: "ready" });
 }
@@ -197,14 +211,23 @@ function search(query: string, { sort, filters }: { sort: SortMode; filters: Fil
     let candidates: Array<{ job: Job; score: number; terms: string[] }>;
     if (freeText.length && mini) {
       const msQuery = freeText.map((c) => c.value).join(" ");
-      const results: SearchResult[] = mini.search(
-        msQuery,
-        orMode ? { combineWith: "OR" } : undefined,
-      );
+      // Everything (tokenize, prefix/fuzzy, BM25, ranking) runs in wasm; the
+      // result set comes back columnar and is decoded here.
+      const r = mini.searchJoined(msQuery, orMode) as JoinedResults;
       candidates = [];
-      for (const r of results) {
-        const job = byId.get(r.id as string);
-        if (job) candidates.push({ job, score: r.score, terms: r.terms });
+      if (r.count) {
+        const ids = r.ids.split("\n");
+        const termRows = r.terms.split("\n");
+        for (let i = 0; i < r.count; i++) {
+          const job = byId.get(ids[i]);
+          if (job) {
+            candidates.push({
+              job,
+              score: r.scores[i],
+              terms: termRows[i] ? termRows[i].split(" ") : [],
+            });
+          }
+        }
       }
     } else {
       candidates = jobs.map((job) => ({ job, score: 0, terms: [] }));

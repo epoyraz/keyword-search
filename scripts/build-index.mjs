@@ -9,12 +9,12 @@
 
 import { readdir, readFile, writeFile, stat, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { createHash } from "node:crypto";
 import { gzipSync, brotliCompressSync, constants as zlibConstants } from "node:zlib";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import MiniSearch from "minisearch";
 import { miniSearchOptions } from "../lib/searchConfig.mjs";
+import { syncRustEngineAndIndex } from "./build-rust-index.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
@@ -254,9 +254,20 @@ async function main() {
   mini.addAll(jobs);
   await writeVariants(INDEX_FILE, JSON.stringify(mini));
 
+  // 2b. Rust/Wasm engine: binary index snapshot the worker loads at runtime,
+  //     plus the wasm module + JS glue synced into the app. Requires the
+  //     minisearch-rust pkg to be built (wasm-pack build --target web).
+  const rust = await syncRustEngineAndIndex(docsJson);
+  console.log(
+    `Rust index public/search-index.bin — ${(rust.indexBytes / 1024 / 1024).toFixed(1)} MB; ` +
+      `engine synced (wasm ${(rust.wasmBytes / 1024 / 1024).toFixed(1)} MB)`,
+  );
+
   // 3. Tiny meta file: stats for the filter UI + a content hash to version the
   //    cached assets (so a data change busts the browser cache).
-  const version = createHash("sha1").update(docsJson).digest("hex").slice(0, 12);
+  // Version by the Rust index content (data + format) so clients cache-bust on
+  // either a data change or an index-format change.
+  const version = rust.version;
   const companyNames = Array.from(new Set(jobs.map((j) => j.company)))
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b));

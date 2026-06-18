@@ -55,6 +55,31 @@ npm run dev     # http://localhost:3000
 
 For a production build: `npm run build && npm start`.
 
+## Local search engine benchmark
+
+Compare the current JavaScript MiniSearch index against the local Rust/Wasm
+prototype in `../../minisearch-rust/pkg`:
+
+```bash
+npm run bench:search
+```
+
+Optional knobs:
+
+```bash
+BENCH_WARMUP=10 BENCH_ITERS=40 npm run bench:search
+```
+
+The benchmark measures index construction/loading, result overlap, query
+latency over representative job-search queries, and separate Rust result shapes:
+
+- `Rust/Wasm` keeps the full MiniSearch-compatible result object.
+- `Rust compact` returns `{ id, score, terms }` objects.
+- `Rust packed` returns parallel `{ ids, scores, terms }` arrays and is the
+  intended worker replacement path.
+
+Treat speed numbers as valid only if the overlap section stays high.
+
 ## Notes
 
 - The index is regenerated only by `npm run index`, so the search UI never

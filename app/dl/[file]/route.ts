@@ -10,14 +10,22 @@ import type { NextRequest } from "next/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ALLOWED = new Set(["jobs.json", "search-index.json"]);
+// jobs.json + the JS index (kept for the benchmark) and the Rust/Wasm engine's
+// binary index snapshot. The wasm module itself ships as a bundled asset, not
+// through here.
+const CONTENT_TYPES: Record<string, string> = {
+  "jobs.json": "application/json; charset=utf-8",
+  "search-index.json": "application/json; charset=utf-8",
+  "search-index.bin": "application/octet-stream",
+};
 
 export async function GET(
   req: NextRequest,
   ctx: { params: Promise<{ file: string }> },
 ) {
   const { file } = await ctx.params;
-  if (!ALLOWED.has(file)) {
+  const contentType = CONTENT_TYPES[file];
+  if (!contentType) {
     return new Response("Not found", { status: 404 });
   }
 
@@ -35,7 +43,7 @@ export async function GET(
   const body = await readFile(path.join(process.cwd(), "public", file + ext));
 
   const headers = new Headers({
-    "Content-Type": "application/json; charset=utf-8",
+    "Content-Type": contentType,
     // Fetched with a ?v=<hash> query, so it can be cached forever.
     "Cache-Control": "public, max-age=31536000, immutable",
     Vary: "Accept-Encoding",
