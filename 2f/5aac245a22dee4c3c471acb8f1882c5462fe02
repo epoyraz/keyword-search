@@ -1,0 +1,32 @@
+lib/search.ts
+  s_56083f5fd75e4f::t_f64ff8649775fc 33-34
+  s_56083f5fd75e4f::t_5e6bdb00ea0746 94-96
+  s_56083f5fd75e4f::t_5db470cea2e43b 133-134,137-246,250-252,259-260,263,269-276,278,280-301,303-304,307-311,313-316,318,320-325,328,337-339,341
+  s_56083f5fd75e4f::t_47dd45d7b6e8c3 115-119
+app/page.tsx
+  s_56083f5fd75e4f::t_a7e0a506102f87 202
+  s_56083f5fd75e4f::t_3143857d90b018 198-201,203-214,228-232
+  s_56083f5fd75e4f::t_43260a26568742 220
+  s_56083f5fd75e4f::t_1dc3bcef9bfb41 48,51-59
+  s_56083f5fd75e4f::t_3b83b9f4869dbe 64-66,68,78
+  s_56083f5fd75e4f::t_5b3a6c75a9a530 47,50,69-75,77,87-100,103,116,118
+  s_56083f5fd75e4f::t_101168049f306a 76
+public/jobs.json
+  s_56083f5fd75e4f::t_7693c37016ff7f 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "2f5aac245a22dee4c3c471acb8f1882c5462fe02",
+  "prompts": {},
+  "sessions": {
+    "s_56083f5fd75e4f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "028e066e-07d8-4169-8415-18e8673c2a50",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
