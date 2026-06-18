@@ -275,16 +275,14 @@ export function search(
       .filter((c) => c.phrase)
       .map((c) => c.value.toLowerCase());
 
-    // Map processed tokens back to original-cased words for the matched tags.
-    const displayMap = new Map<string, string>();
-    for (const c of [...freeText, ...fieldPos]) {
-      for (const word of c.value.split(/\s+/)) {
-        for (const tok of tokenize(word)) {
-          const key = processTerm(tok);
-          if (key && !displayMap.has(key)) displayMap.set(key, word);
-        }
-      }
-    }
+    // One matched tag per positive clause (not per token), so a quoted phrase
+    // like "Claude Code" counts as a single match, not one per word.
+    const clauseTokenSets = freeText.map((c) => ({
+      label: c.value,
+      toks: tokenize(c.value)
+        .map((t) => processTerm(t))
+        .filter((t): t is string => Boolean(t)),
+    }));
 
     // Candidate retrieval: MiniSearch ranks free-text positives; if there are
     // none (pure field/exclusion query) we scan the corpus and post-filter.
@@ -322,10 +320,20 @@ export function search(
       // Exclusions remove any job matching a negated clause.
       if (negatives.some((c) => clauseMatches(job, c))) continue;
 
-      const matched = Array.from(new Set(terms)).map(
-        (t) => displayMap.get(t) ?? t,
-      );
-      hits.push({ ...job, score, terms: hlTerms, matched });
+      // A free-text clause matched this job if all its tokens are among the
+      // MiniSearch-matched terms; field-scoped positives already passed above.
+      const ts = new Set(terms);
+      const matched: string[] = [];
+      for (const { label, toks } of clauseTokenSets) {
+        if (toks.length && toks.every((t) => ts.has(t))) matched.push(label);
+      }
+      for (const c of fieldPos) matched.push(c.value);
+      hits.push({
+        ...job,
+        score,
+        terms: hlTerms,
+        matched: Array.from(new Set(matched)),
+      });
     }
 
     if (sort === "matches") {
