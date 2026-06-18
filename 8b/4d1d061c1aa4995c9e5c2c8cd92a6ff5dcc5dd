@@ -1,0 +1,49 @@
+next.config.ts
+  s_56083f5fd75e4f::t_2cdd08aec8ec97 13-29
+public/search-index.json
+  s_56083f5fd75e4f::t_26c0880a9302df 1
+public/search-meta.json
+  s_56083f5fd75e4f::t_26c0880a9302df 1
+lib/searchConfig.mjs
+  s_56083f5fd75e4f::t_9a74d74a04ec70 1-45
+lib/search.ts
+  s_56083f5fd75e4f::t_0747bd2476ee88 1-4
+scripts/build-index.mjs
+  s_56083f5fd75e4f::t_ae3923d07e02ef 244,252-257,262
+  s_56083f5fd75e4f::t_c56ae5d5fafca6 229-243,245-251,258,260,265-267
+  s_56083f5fd75e4f::t_73b259589bb812 12,15-16,21-24
+lib/types.ts
+  s_56083f5fd75e4f::t_b9fd774ddc5b75 1-60
+lib/searchClient.ts
+  s_56083f5fd75e4f::t_44dbf25dbfcd68 1-51
+public/jobs.json
+  s_56083f5fd75e4f::t_26c0880a9302df 1
+lib/searchConfig.d.mts
+  s_56083f5fd75e4f::t_eba02bfef28fcf 1-16
+lib/search.worker.ts
+  s_56083f5fd75e4f::t_13ddb25cb7c0db 25-32,34
+  s_56083f5fd75e4f::t_7082cc61e1becd 255
+  s_56083f5fd75e4f::t_798ef8a712450f 1-24,33,35-254,256-267
+app/page.tsx
+  s_56083f5fd75e4f::t_7b8100709acf87 76-78
+  s_56083f5fd75e4f::t_ba36b3ffc6f941 258-263,266
+  s_56083f5fd75e4f::t_66fbcd0f936edd 108-113,116-117,119-121
+  s_56083f5fd75e4f::t_a08cefe57f71e7 3-5
+  s_56083f5fd75e4f::t_93286f8ffcd25c 46-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "8b4d1d061c1aa4995c9e5c2c8cd92a6ff5dcc5dd",
+  "prompts": {},
+  "sessions": {
+    "s_56083f5fd75e4f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "028e066e-07d8-4169-8415-18e8673c2a50",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
