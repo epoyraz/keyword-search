@@ -1,0 +1,25 @@
+app/dl/[file]/route.ts
+  s_7bd1e3c1cb7ce5::t_bc9a589f072097 5-7,15
+lib/search.worker.ts
+  s_7bd1e3c1cb7ce5::t_9d8ed0fca4d6ae 50-58,62-64,68,70
+  s_7bd1e3c1cb7ce5::t_da8ac6d5778313 9
+scripts/build-index.mjs
+  s_7bd1e3c1cb7ce5::t_79b8c3afe0aee2 19
+  s_7bd1e3c1cb7ce5::t_0142a0df877692 91-95,110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "9517fb8c219b386b3cd5ca9333a7530b9a9b429f",
+  "prompts": {},
+  "sessions": {
+    "s_7bd1e3c1cb7ce5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5cf200ad-c548-4ac9-8a24-e2cd5b0265ca",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
