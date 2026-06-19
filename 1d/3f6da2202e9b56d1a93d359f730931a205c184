@@ -1,0 +1,31 @@
+app/CityFilter.tsx
+  s_7bd1e3c1cb7ce5::t_f845eac6a9a8ab 101
+  s_7bd1e3c1cb7ce5::t_f0c370d2945889 11-16,24-30,72-73,78,87-91,95-99,106-112,120,123,127
+  s_7bd1e3c1cb7ce5::t_6d290d53d6380c 131
+app/layout.tsx
+  s_7bd1e3c1cb7ce5::t_eaa9e200ea20b9 1
+  s_7bd1e3c1cb7ce5::t_086103b769f8f3 22-30
+app/page.tsx
+  s_7bd1e3c1cb7ce5::t_db5b95686b124a 56-58
+  s_7bd1e3c1cb7ce5::t_76b060be78533d 293
+  s_7bd1e3c1cb7ce5::t_f739f825b5891c 258
+  s_7bd1e3c1cb7ce5::t_2b5153b7b9f171 12-14,18-23
+  s_7bd1e3c1cb7ce5::t_d3fe91c07f5729 474
+  s_7bd1e3c1cb7ce5::t_492fe7ea21aa8f 11,15-17,24-25,35-41,43-46,55,75,86-92,95,161,166-168,172-182,194,200-234,243-247,283-287,292,315,335-371,373-383,387-402,404-407,414,422,425-473,475-534
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "1d3f6da2202e9b56d1a93d359f730931a205c184",
+  "prompts": {},
+  "sessions": {
+    "s_7bd1e3c1cb7ce5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5cf200ad-c548-4ac9-8a24-e2cd5b0265ca",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
