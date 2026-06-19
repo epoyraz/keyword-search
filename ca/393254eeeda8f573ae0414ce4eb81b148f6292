@@ -1,0 +1,68 @@
+public/jobs.json
+  s_9b5635396ee956::t_896ba5f7f623d0 1
+public/search-index.json
+  s_9b5635396ee956::t_6fcc75c42da758 1
+lib/types.ts
+  s_9b5635396ee956::t_7d1ffbcb28fcf7 48-54
+  s_9b5635396ee956::t_cbc9b152c29999 26-27
+app/CityFilter.tsx
+  s_9b5635396ee956::t_f6d80477c9b262 1-129
+app/page.tsx
+  s_9b5635396ee956::t_4660dcd3bb065b 42
+  s_9b5635396ee956::t_b141e6315c6599 102
+  s_9b5635396ee956::t_a0caf726d4c15e 7
+  s_9b5635396ee956::t_aee1a8c7320b8c 116,123
+  s_9b5635396ee956::t_18563e82a811f2 210,215
+  s_9b5635396ee956::t_4e857094e130b7 72
+  s_9b5635396ee956::t_76f785f85c68ea 94,98
+  s_9b5635396ee956::t_61b2971e99c048 185-191
+lib/searchClient.ts
+  s_9b5635396ee956::t_c51f85f89f66ea 30-36
+scripts/build-index.mjs
+  s_9b5635396ee956::t_94dfde882abe4c 1,3-8,10,12,15,18-19,24-25,27-42,45-51,56-61,67-78,81-84
+lib/search.worker.ts
+  s_9b5635396ee956::t_13e8d71b0df8ad 50-53,55-56,58-59,61-67
+  s_9b5635396ee956::t_1d17a50161ab7d 9
+  s_9b5635396ee956::t_970e85e71edf1e 75-79
+  s_9b5635396ee956::t_9862806dd1f466 219-221,231-234,237-250,252,260,262-267,272-279,282,288-291,294,306-309
+  s_9b5635396ee956::t_8f4348fcde8fac 8
+scripts/normalizeCity.mjs
+  s_9b5635396ee956::t_a06fa709764e06 129-130,132
+  s_9b5635396ee956::t_0fe1fab1c48ebc 1-100,103-128,131,133-136
+  s_9b5635396ee956::t_5ca7bb6b514420 101-102
+app/dl/[file]/route.ts
+  s_9b5635396ee956::t_37eb9fc2e88344 5-7
+Dockerfile
+  s_9b5635396ee956::t_8a89613cc62165 11-12
+  s_9b5635396ee956::t_3447156a476fdf 23
+package.json
+  s_9b5635396ee956::t_dbaada48eadd0b 15
+lib/textClean.mjs
+  s_9b5635396ee956::t_fee68930e90ec9 1-69
+scripts/build-rust-index.mjs
+  s_9b5635396ee956::t_151d9f30ed0b6b 53
+  s_9b5635396ee956::t_549e17f0953d13 1,6-9,14,70-72,75,90
+  s_9b5635396ee956::t_1161da9f8a757d 16,20,27-38
+public/search-meta.json
+  s_9b5635396ee956::t_896ba5f7f623d0 1
+lib/cityMeta.mjs
+  s_9b5635396ee956::t_0bb885d08ae8e4 1-29
+next.config.ts
+  s_9b5635396ee956::t_9705b3785734ca 16-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "ca393254eeeda8f573ae0414ce4eb81b148f6292",
+  "prompts": {},
+  "sessions": {
+    "s_9b5635396ee956": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "062ed435-4dbe-4cd6-b19a-15be61bac0b7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
