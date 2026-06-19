@@ -1,0 +1,23 @@
+DATA.md
+  s_9b5635396ee956::t_c8fd5c1382ba14 1-60
+scripts/build-index.mjs
+  s_9b5635396ee956::t_ec4010bf8632c0 55-67,73-82
+deploy/cloudbuild-app.yaml
+  s_9b5635396ee956::t_61398ef153a91a 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.8",
+  "base_commit_sha": "339ed58bc6aec0431ba1b0c11f6850abf2ce5cec",
+  "prompts": {},
+  "sessions": {
+    "s_9b5635396ee956": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "062ed435-4dbe-4cd6-b19a-15be61bac0b7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
