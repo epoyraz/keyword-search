@@ -1,0 +1,19 @@
+app/page.tsx
+  s_7bd1e3c1cb7ce5::t_44400c9717e967 26-38,67-91,99-136,152-155,173-174,177-195,201-205,225,238-264,290-305,315,332-340,347,349-405,443,516,524-534,542,545-562,569,573,582,587,590-595,599,659-676,678-685,696,698-714,716-732,734,737,739-745,747,749-756,758-763,766-782,784
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "cd43f793441e83bf1fffdf99cebb85c6ce008333",
+  "prompts": {},
+  "sessions": {
+    "s_7bd1e3c1cb7ce5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5cf200ad-c548-4ac9-8a24-e2cd5b0265ca",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
