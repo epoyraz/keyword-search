@@ -23,7 +23,8 @@ export type SortMode = "relevance" | "date" | "matches";
 
 export interface Filters {
   company?: string;
-  employmentType?: string;
+  /** Exact city; matched against any of a job's locations. */
+  city?: string;
   /** ISO date (YYYY-MM-DD); keep only postings on/after this date. */
   postedAfter?: string;
 }
@@ -44,7 +45,13 @@ export interface SearchArgs {
 export interface IndexStats {
   total: number;
   companies: string[];
-  employmentTypes: string[];
+  /**
+   * Cities for the filter, pre-ordered: the `topCityCount` biggest (by posting
+   * count) first, then the remainder alphabetically.
+   */
+  cities: string[];
+  /** How many leading entries in `cities` are the "top" group (for the separator). */
+  topCityCount: number;
   /** Content hash; used to version the cached index assets. */
   version: string;
 }

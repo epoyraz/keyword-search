@@ -5,8 +5,8 @@
 // runs the whole search in wasm and returns a compact columnar result.
 // Versioned URLs let the browser cache serve repeat loads with no re-download.
 
-import init, { MiniSearchWasm } from "./engine/minisearch_rust.js";
-import { tokenize, processTerm } from "./searchConfig.mjs";
+import init, { MiniSearchWasm } from "minisearch-wasm";
+import { tokenize, processTerm, SEARCH_FIELDS, SEARCH_OPTIONS } from "./searchConfig.mjs";
 import type {
   Job,
   Hit,
@@ -47,19 +47,24 @@ function post(msg: WorkerResponse) {
 
 async function load(version: string) {
   const v = encodeURIComponent(version);
-  const [docsRes, idxRes] = await Promise.all([
-    fetch(`/dl/jobs.json?v=${v}`),
-    fetch(`/dl/search-index.bin?v=${v}`),
-  ]);
-  if (!docsRes.ok || !idxRes.ok) {
-    throw new Error(`load failed: docs ${docsRes.status}, index ${idxRes.status}`);
+  // Data comes from the server's /dl provider (derived from GCS job_details.sqlite).
+  const docsRes = await fetch(`/dl/jobs.json?v=${v}`);
+  if (!docsRes.ok) {
+    throw new Error(`load failed: docs ${docsRes.status}`);
   }
-  jobs = (await docsRes.json()) as Job[];
+  const text = await docsRes.text();
+  jobs = JSON.parse(text) as Job[];
   byId = new Map(jobs.map((j) => [j.id, j]));
-  // Instantiate the wasm engine (its module is a bundled asset), then load the
-  // prebuilt binary index snapshot.
+  // Instantiate the wasm engine (minisearch-wasm web target), then build the
+  // index in-worker from the doc JSON (no prebuilt .bin to ship/serve).
   await init();
-  mini = MiniSearchWasm.loadBytes(new Uint8Array(await idxRes.arrayBuffer()));
+  mini = new MiniSearchWasm({
+    idField: "id",
+    fields: SEARCH_FIELDS,
+    tokenizer: "jobboard",
+    searchOptions: SEARCH_OPTIONS,
+  });
+  mini.addAllJSON(text);
   resolveLoaded();
   post({ type: "ready" });
 }
@@ -67,8 +72,11 @@ async function load(version: string) {
 // --- query engine (pure; mirrors the previous in-page implementation) ------
 function passesFilters(job: Job, filters: Filters): boolean {
   if (filters.company && job.company !== filters.company) return false;
-  if (filters.employmentType && job.employmentType !== filters.employmentType)
-    return false;
+  if (filters.city) {
+    // A job's location may list several cities joined by "; ".
+    const cities = job.location ? job.location.split(/;\s*/).map((s) => s.trim()) : [];
+    if (!cities.includes(filters.city)) return false;
+  }
   if (filters.postedAfter) {
     if (!job.datePosted || job.datePosted < filters.postedAfter) return false;
   }
@@ -208,29 +216,40 @@ function search(query: string, { sort, filters }: { sort: SortMode; filters: Fil
         .filter((t): t is string => Boolean(t)),
     }));
 
-    let candidates: Array<{ job: Job; score: number; terms: string[] }>;
+    // Free-text matching runs in wasm; collect it into a per-id map so it can be
+    // combined with field-scoped clauses under either AND or OR.
+    const wasmHits = new Map<string, { score: number; terms: string[] }>();
     if (freeText.length && mini) {
       const msQuery = freeText.map((c) => c.value).join(" ");
       // Everything (tokenize, prefix/fuzzy, BM25, ranking) runs in wasm; the
       // result set comes back columnar and is decoded here.
       const r = mini.searchJoined(msQuery, orMode) as JoinedResults;
-      candidates = [];
       if (r.count) {
         const ids = r.ids.split("\n");
         const termRows = r.terms.split("\n");
         for (let i = 0; i < r.count; i++) {
-          const job = byId.get(ids[i]);
-          if (job) {
-            candidates.push({
-              job,
-              score: r.scores[i],
-              terms: termRows[i] ? termRows[i].split(" ") : [],
-            });
-          }
+          wasmHits.set(ids[i], {
+            score: r.scores[i],
+            terms: termRows[i] ? termRows[i].split(" ") : [],
+          });
         }
       }
+    }
+
+    // Candidate universe. In OR mode a job can qualify via a field clause alone
+    // (so it may be outside the free-text hit set) — scan every job. Otherwise,
+    // free text (when present) bounds the set to its wasm hits.
+    let universe: Job[];
+    if (orMode && fieldPos.length > 0) {
+      universe = jobs;
+    } else if (freeText.length) {
+      universe = [];
+      for (const id of wasmHits.keys()) {
+        const job = byId.get(id);
+        if (job) universe.push(job);
+      }
     } else {
-      candidates = jobs.map((job) => ({ job, score: 0, terms: [] }));
+      universe = jobs;
     }
 
     const hlTerms = positives.flatMap((c) =>
@@ -238,24 +257,41 @@ function search(query: string, { sort, filters }: { sort: SortMode; filters: Fil
     );
 
     hits = [];
-    for (const { job, score, terms } of candidates) {
+    for (const job of universe) {
       if (!passesFilters(job, filters)) continue;
+
+      const wh = wasmHits.get(job.id);
+      const inWasm = wh !== undefined;
+
+      // Phrase adjacency for free text is only enforced in AND mode (wasm
+      // matches phrase tokens but not their adjacency).
       if (!orMode && freeTextPhrases.length) {
         const text = searchableText(job);
         if (!freeTextPhrases.every((p) => text.includes(p))) continue;
       }
-      if (!fieldPos.every((c) => clauseMatches(job, c))) continue;
+
+      // Combine free-text and field-scoped clauses honoring AND vs OR.
+      const qualifies = orMode
+        ? (freeText.length > 0 && inWasm) ||
+          fieldPos.some((c) => clauseMatches(job, c))
+        : (freeText.length === 0 || inWasm) &&
+          fieldPos.every((c) => clauseMatches(job, c));
+      if (!qualifies) continue;
       if (negatives.some((c) => clauseMatches(job, c))) continue;
 
+      const terms = wh ? wh.terms : [];
       const ts = new Set(terms);
       const matched: string[] = [];
       for (const { label, toks } of clauseTokenSets) {
         if (toks.length && toks.every((t) => ts.has(t))) matched.push(label);
       }
-      for (const c of fieldPos) matched.push(c.value);
+      // Only tag a field clause that actually matched (matters in OR mode).
+      for (const c of fieldPos) {
+        if (clauseMatches(job, c)) matched.push(c.value);
+      }
       hits.push({
         ...job,
-        score,
+        score: wh ? wh.score : 0,
         terms: hlTerms,
         matched: Array.from(new Set(matched)),
       });
@@ -267,7 +303,10 @@ function search(query: string, { sort, filters }: { sort: SortMode; filters: Fil
       );
     } else if (sort === "date") {
       hits.sort(byDateDesc);
-    } else if (!freeText.length) {
+    } else if (freeText.length) {
+      // relevance: BM25 score from wasm, newest as tie-break
+      hits.sort((a, b) => b.score - a.score || byDateDesc(a, b));
+    } else {
       hits.sort(byDateDesc);
     }
   }

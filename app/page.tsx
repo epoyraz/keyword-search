@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { loadIndex, search as runSearch } from "@/lib/searchClient";
 import type { Hit, IndexStats, SearchOutcome, SortMode } from "@/lib/types";
 import { highlight, snippet } from "@/lib/highlight";
+import CityFilter from "./CityFilter";
 
 const PAGE_SIZE = 30;
 
@@ -38,7 +39,7 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortMode>("relevance");
   const [company, setCompany] = useState("");
-  const [employmentType, setEmploymentType] = useState("");
+  const [city, setCity] = useState("");
   const [days, setDays] = useState(0); // posted-within window; 0 = any time
   const [postedAfter, setPostedAfter] = useState<string | undefined>(undefined);
   const [limit, setLimit] = useState(PAGE_SIZE);
@@ -68,7 +69,7 @@ export default function Home() {
     const s = p.get("sort");
     if (s === "relevance" || s === "date" || s === "matches") setSort(s);
     if (p.has("company")) setCompany(p.get("company") ?? "");
-    if (p.has("type")) setEmploymentType(p.get("type") ?? "");
+    if (p.has("city")) setCity(p.get("city") ?? "");
     const d = Number(p.get("days"));
     if (Number.isFinite(d) && d > 0) chooseDays(d);
     setHydrated(true);
@@ -90,15 +91,15 @@ export default function Home() {
     if (query) p.set("q", query);
     if (sort !== "relevance") p.set("sort", sort);
     if (company) p.set("company", company);
-    if (employmentType) p.set("type", employmentType);
+    if (city) p.set("city", city);
     if (days) p.set("days", String(days));
     const qs = p.toString();
     window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
-  }, [hydrated, query, sort, company, employmentType, days]);
+  }, [hydrated, query, sort, company, city, days]);
 
   // Reset pagination whenever the query or a filter changes (adjust state
   // during render, per React guidance, rather than in an effect).
-  const viewKey = `${debouncedQuery}|${sort}|${company}|${employmentType}|${days}`;
+  const viewKey = `${debouncedQuery}|${sort}|${company}|${city}|${days}`;
   const [prevViewKey, setPrevViewKey] = useState(viewKey);
   if (viewKey !== prevViewKey) {
     setPrevViewKey(viewKey);
@@ -112,14 +113,14 @@ export default function Home() {
     runSearch({
       query: debouncedQuery,
       sort,
-      filters: { company, employmentType, postedAfter },
+      filters: { company, city, postedAfter },
     }).then((o) => {
       if (!cancelled) setOutcome(o);
     });
     return () => {
       cancelled = true;
     };
-  }, [ready, debouncedQuery, sort, company, employmentType, postedAfter]);
+  }, [ready, debouncedQuery, sort, company, city, postedAfter]);
 
   const visible: Hit[] = outcome ? outcome.hits.slice(0, limit) : [];
 
@@ -181,22 +182,13 @@ export default function Home() {
             </select>
           </label>
 
-          {stats && stats.employmentTypes.length > 0 && (
-            <label className="flex items-center gap-1">
-              <span className="text-gray-500">Type</span>
-              <select
-                value={employmentType}
-                onChange={(e) => setEmploymentType(e.target.value)}
-                className="rounded border border-gray-300 bg-white px-1.5 py-1"
-              >
-                <option value="">all</option>
-                {stats.employmentTypes.map((t) => (
-                  <option key={t} value={t}>
-                    {fmtType(t)}
-                  </option>
-                ))}
-              </select>
-            </label>
+          {stats && stats.cities.length > 0 && (
+            <CityFilter
+              value={city}
+              onChange={setCity}
+              cities={stats.cities}
+              topCount={stats.topCityCount}
+            />
           )}
 
           <label className="flex items-center gap-1">
@@ -215,12 +207,12 @@ export default function Home() {
             </select>
           </label>
 
-          {(company || employmentType || query || days) && (
+          {(company || city || query || days) && (
             <button
               onClick={() => {
                 setQuery("");
                 setCompany("");
-                setEmploymentType("");
+                setCity("");
                 chooseDays(0);
               }}
               className="text-orange-600 hover:underline"

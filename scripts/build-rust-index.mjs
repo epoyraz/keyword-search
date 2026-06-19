@@ -1,30 +1,41 @@
-// Build the Rust/Wasm search index (binary snapshot) the worker loads at
-// runtime, and sync the engine files (wasm + JS glue) into the app.
+// Build the minisearch-wasm binary index snapshot the worker loads at runtime.
 //
 // - Reads public/jobs.json (the same doc store the JS index is built from).
 // - Builds a MiniSearchWasm index with the shared search config and writes
 //   public/search-index.bin (+ .gz/.br) — the worker fetches it via /dl.
-// - Copies the freshly built pkg into the app: JS glue -> lib/engine/,
-//   wasm binary -> public/ (+ .gz/.br) so the engine + index stay in lockstep.
+//
+// The wasm engine now ships as the `minisearch-wasm` npm package (wasm-pack
+// bundler target, self-initializing on import). Both this builder and the
+// worker import it directly, so there is no engine to copy into the app.
 //
 // Run standalone (`node scripts/build-rust-index.mjs`) against an existing
 // public/jobs.json, or call syncRustEngineAndIndex() from build-index.mjs.
 
-import { readFile, writeFile, copyFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
 import { gzipSync, brotliCompressSync, constants as zlibConstants } from "node:zlib";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import init, { MiniSearchWasm } from "minisearch-wasm";
 import { SEARCH_FIELDS, SEARCH_OPTIONS } from "../lib/searchConfig.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
-const PKG = path.resolve(ROOT, "..", "..", "minisearch-rust", "pkg");
 const PUBLIC_DIR = path.resolve(ROOT, "public");
-const ENGINE_DIR = path.resolve(ROOT, "lib", "engine");
 
-const WASM_FILE = "minisearch_rust_bg.wasm";
-const GLUE_FILES = ["minisearch_rust.js", "minisearch_rust.d.ts"];
+// The web-target init() defaults to fetching the wasm via a file: URL, which
+// Node's fetch can't do — so initialize once from the wasm bytes directly.
+let wasmReady;
+function ensureWasm() {
+  if (!wasmReady) {
+    const wasmPath = createRequire(import.meta.url).resolve(
+      "minisearch-wasm/minisearch_wasm_bg.wasm",
+    );
+    wasmReady = readFile(wasmPath).then((bytes) => init(bytes));
+  }
+  return wasmReady;
+}
 
 async function writeVariants(file, buf) {
   await writeFile(file, buf);
@@ -37,15 +48,9 @@ async function writeVariants(file, buf) {
   );
 }
 
-async function loadEngine() {
-  const glue = await import(pathToFileURL(path.join(PKG, "minisearch_rust.js")).href);
-  await glue.default({ module_or_path: await readFile(path.join(PKG, WASM_FILE)) });
-  return glue.MiniSearchWasm;
-}
-
 /** Build the binary index from a jobs.json text and write it (+ compressed). */
 export async function buildRustIndex(jobsJson) {
-  const MiniSearchWasm = await loadEngine();
+  await ensureWasm();
   const mini = new MiniSearchWasm({
     idField: "id",
     fields: SEARCH_FIELDS,
@@ -62,25 +67,12 @@ export async function buildRustIndex(jobsJson) {
 }
 
 /**
- * Copy the built engine into lib/engine/ so it ships with the app bundle. The
- * wasm sits next to its JS glue: the bundler resolves the glue's
- * `new URL('minisearch_rust_bg.wasm', import.meta.url)` and emits the wasm as a
- * hashed static asset that `init()` fetches at runtime.
+ * Build the binary index. The engine ships via the `minisearch-wasm` package,
+ * so unlike before there is nothing to copy into lib/engine — this is now just
+ * an alias for buildRustIndex, kept so build-index.mjs's call site is stable.
  */
-export async function syncEngine() {
-  await mkdir(ENGINE_DIR, { recursive: true });
-  for (const f of [...GLUE_FILES, WASM_FILE]) {
-    await copyFile(path.join(PKG, f), path.join(ENGINE_DIR, f));
-  }
-  const wasm = await readFile(path.join(PKG, WASM_FILE));
-  return wasm.length;
-}
-
-/** Both steps, sharing one engine build. Call this from build-index.mjs. */
 export async function syncRustEngineAndIndex(jobsJson) {
-  const { indexBytes, version } = await buildRustIndex(jobsJson);
-  const wasmBytes = await syncEngine();
-  return { indexBytes, wasmBytes, version };
+  return buildRustIndex(jobsJson);
 }
 
 /** Update only the `version` field of public/search-meta.json. */
@@ -95,10 +87,9 @@ const mb = (n) => `${(n / 1024 / 1024).toFixed(1)} MB`;
 
 async function main() {
   const jobsJson = await readFile(path.join(PUBLIC_DIR, "jobs.json"), "utf8");
-  const { indexBytes, wasmBytes, version } = await syncRustEngineAndIndex(jobsJson);
+  const { indexBytes, version } = await buildRustIndex(jobsJson);
   await updateMetaVersion(version);
   console.log(`Wrote public/search-index.bin — ${mb(indexBytes)} (+ .gz/.br)`);
-  console.log(`Synced engine into lib/engine/: ${[...GLUE_FILES, WASM_FILE].join(", ")} — wasm ${mb(wasmBytes)}`);
   console.log(`Updated search-meta.json version -> ${version}`);
 }
 

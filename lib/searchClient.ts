@@ -27,6 +27,13 @@ function ensureWorker(): Worker {
       console.error("search worker error:", m.message);
     }
   };
+  // Surface module-load/instantiation failures (otherwise the UI hangs forever
+  // on "Building local index…").
+  worker.onerror = (e) => {
+    const msg = e.message || "worker failed to load";
+    console.error("search worker failed:", msg, e);
+    (globalThis as Record<string, unknown>).__workerError = msg;
+  };
   return worker;
 }
 
