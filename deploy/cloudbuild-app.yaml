@@ -1,0 +1,43 @@
+# Daily rebuild+deploy of keyword-search. Run by the `keyword-search-deploy`
+# Cloud Run Job (triggered by the keyword-search-daily-deploy scheduler at
+# 05:00 UTC, 2h after the details scraper starts).
+#
+# Source is a snapshot tarball in GCS (re-upload it when the app code changes:
+#   tar czf src.tgz --exclude=node_modules --exclude=.next --exclude=.git \
+#     --exclude='public/jobs.json*' --exclude=public/search-meta.json . && \
+#   gcloud storage cp src.tgz gs://jobboard-data-exports/deploy/keyword-search-src.tgz )
+# The image build runs `npm run index`, which downloads the latest
+# job_details.json, so the DATA is fresh on every run even though the source is
+# pinned.
+steps:
+  - name: 'gcr.io/cloud-builders/gsutil'
+    args: ['cp', 'gs://jobboard-data-exports/deploy/keyword-search-src.tgz', '/workspace/src.tgz']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        mkdir -p /workspace/src && tar xzf /workspace/src.tgz -C /workspace/src
+        docker build -t gcr.io/$PROJECT_ID/keyword-search-app:latest -f /workspace/src/Dockerfile /workspace/src
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/keyword-search-app:latest']
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'keyword-search'
+      - '--image=gcr.io/$PROJECT_ID/keyword-search-app:latest'
+      - '--region=europe-west1'
+      - '--allow-unauthenticated'
+      - '--port=8080'
+      - '--memory=512Mi'
+      - '--cpu=1'
+      - '--quiet'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+timeout: 1800s

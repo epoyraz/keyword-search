@@ -52,12 +52,34 @@ async function writeVariants(file, str) {
   );
 }
 
+// Some job "detail pages" are actually PDFs (or other binary), so the scraped
+// description/title is undecoded binary. Detect that by the share of replacement
+// (U+FFFD) and control characters.
+function isGarbage(s) {
+  if (!s) return false;
+  let bad = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i);
+    if (c === 0xfffd || c < 9 || (c > 13 && c < 32)) bad++;
+  }
+  return bad > 8 && bad / s.length > 0.03;
+}
+
 async function main() {
   console.log("Fetching", SOURCE_URL);
   const res = await fetch(SOURCE_URL, { cache: "no-store" });
   if (!res.ok) throw new Error(`fetch ${SOURCE_URL} -> ${res.status}`);
   const rows = await res.json();
-  const jobs = rows.map(toJob).filter((j) => j.id);
+  const mapped = rows.map(toJob).filter((j) => j.id);
+  let blanked = 0;
+  for (const j of mapped) {
+    if (isGarbage(j.description)) { j.description = ""; blanked++; }
+    if (isGarbage(j.title)) j.title = "(untitled)";
+  }
+  // Drop entries with no usable content (PDF/binary detail pages): no real
+  // title AND no description.
+  const jobs = mapped.filter((j) => !(j.title === "(untitled)" && !j.description));
+  console.log(`Excluded ${mapped.length - jobs.length} content-less jobs; blanked ${blanked} garbage descriptions`);
   // Newest first — the default ordering for an empty query.
   jobs.sort((a, b) => (b.datePosted || "").localeCompare(a.datePosted || ""));
 
