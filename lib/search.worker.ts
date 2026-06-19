@@ -6,7 +6,7 @@
 // Versioned URLs let the browser cache serve repeat loads with no re-download.
 
 import init, { MiniSearchWasm } from "minisearch-wasm";
-import { tokenize, processTerm, SEARCH_FIELDS, SEARCH_OPTIONS } from "./searchConfig.mjs";
+import { tokenize, processTerm } from "./searchConfig.mjs";
 import type {
   Job,
   Hit,
@@ -47,24 +47,27 @@ function post(msg: WorkerResponse) {
 
 async function load(version: string) {
   const v = encodeURIComponent(version);
-  // Data comes from the server's /dl provider (derived from GCS job_details.sqlite).
-  const docsRes = await fetch(`/dl/jobs.json?v=${v}`);
+  // Docs (for rendering hit details via byId) and the prebuilt wasm index
+  // snapshot are fetched in parallel from the server's /dl provider. The index
+  // is built once at image-build time (npm run index), so the worker restores
+  // it via loadBytes instead of re-indexing ~22k docs in every browser
+  // (~6.5s/load saved). The search config is baked into the snapshot.
+  const [docsRes, idxRes] = await Promise.all([
+    fetch(`/dl/jobs.json?v=${v}`),
+    fetch(`/dl/search-index.bin?v=${v}`),
+  ]);
   if (!docsRes.ok) {
     throw new Error(`load failed: docs ${docsRes.status}`);
+  }
+  if (!idxRes.ok) {
+    throw new Error(`load failed: index ${idxRes.status}`);
   }
   const text = await docsRes.text();
   jobs = JSON.parse(text) as Job[];
   byId = new Map(jobs.map((j) => [j.id, j]));
-  // Instantiate the wasm engine (minisearch-wasm web target), then build the
-  // index in-worker from the doc JSON (no prebuilt .bin to ship/serve).
+  const indexBytes = new Uint8Array(await idxRes.arrayBuffer());
   await init();
-  mini = new MiniSearchWasm({
-    idField: "id",
-    fields: SEARCH_FIELDS,
-    tokenizer: "jobboard",
-    searchOptions: SEARCH_OPTIONS,
-  });
-  mini.addAllJSON(text);
+  mini = MiniSearchWasm.loadBytes(indexBytes);
   resolveLoaded();
   post({ type: "ready" });
 }

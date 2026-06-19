@@ -12,11 +12,11 @@
 import { writeFile, mkdir, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { gzipSync, brotliCompressSync, constants as zlibConstants } from "node:zlib";
-import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { clean } from "../lib/textClean.mjs";
 import { buildCompanies, buildCityMeta } from "../lib/cityMeta.mjs";
+import { buildRustIndex } from "./build-rust-index.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
@@ -88,7 +88,11 @@ async function main() {
   const docsJson = JSON.stringify(jobs);
   await writeVariants(path.join(PUBLIC_DIR, "jobs.json"), docsJson);
 
-  const version = createHash("sha1").update(docsJson).digest("hex").slice(0, 12);
+  // Build the prebuilt wasm index snapshot (public/search-index.bin + .gz/.br)
+  // from the same docs the worker renders. Its content hash is the cache key:
+  // it changes when the data OR the engine's snapshot format changes, so a
+  // client never loads a stale/incompatible .bin against a newer engine.
+  const { indexBytes, version } = await buildRustIndex(docsJson);
   const { cities, topCityCount } = buildCityMeta(jobs);
   const meta = {
     total: jobs.length,
@@ -103,6 +107,7 @@ async function main() {
   console.log(`Indexed ${jobs.length} jobs from ${meta.companies.length} companies; `
     + `${cities.length} cities; version ${version}`);
   console.log(`Wrote public/jobs.json — ${await mb(path.join(PUBLIC_DIR, "jobs.json"))} MB (+ .gz/.br)`);
+  console.log(`Wrote public/search-index.bin — ${(indexBytes / 1048576).toFixed(1)} MB (+ .gz/.br)`);
   console.log(`Wrote public/search-meta.json`);
 }
 
