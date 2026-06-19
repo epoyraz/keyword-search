@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -17,6 +17,15 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "keyword-search",
   description: "Local keyword search over scraped company job postings.",
+};
+
+// Color the mobile browser chrome to match the app header, and let content
+// extend under the notch (the sticky header/sheet add safe-area insets).
+export const viewport: Viewport = {
+  themeColor: "#ff6600",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 // The search assets (docs + prebuilt wasm index) are otherwise fetched late —

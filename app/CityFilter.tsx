@@ -8,6 +8,12 @@ interface CityFilterProps {
   /** Pre-ordered: top `topCount` biggest first, then the rest alphabetically. */
   cities: string[];
   topCount: number;
+  /**
+   * Full-width field styling for the mobile filter sheet: no inline "City"
+   * label (the sheet supplies one), a large touch trigger, and the list
+   * expands in-flow (the sheet scrolls) instead of as a floating popover.
+   */
+  fullWidth?: boolean;
 }
 
 /**
@@ -15,7 +21,13 @@ interface CityFilterProps {
  * top, the top N biggest cities first, a separator, then the rest alphabetically.
  * While searching it shows a flat matching list (no grouping/separator).
  */
-export default function CityFilter({ value, onChange, cities, topCount }: CityFilterProps) {
+export default function CityFilter({
+  value,
+  onChange,
+  cities,
+  topCount,
+  fullWidth = false,
+}: CityFilterProps) {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
@@ -57,11 +69,13 @@ export default function CityFilter({ value, onChange, cities, topCount }: CityFi
     setFilter("");
   };
 
+  const itemPad = fullWidth ? "py-2.5 text-base" : "py-1";
+
   const Item = ({ city }: { city: string }) => (
     <button
       type="button"
       onClick={() => choose(city)}
-      className={`block w-full truncate px-3 py-1 text-left hover:bg-orange-50 ${
+      className={`block w-full truncate px-3 text-left hover:bg-orange-50 ${itemPad} ${
         city === value ? "bg-orange-100 font-medium text-orange-800" : "text-gray-700"
       }`}
     >
@@ -70,19 +84,32 @@ export default function CityFilter({ value, onChange, cities, topCount }: CityFi
   );
 
   return (
-    <div className="relative flex items-center gap-1" ref={rootRef}>
-      <span className="text-gray-500">City</span>
+    <div
+      className={fullWidth ? "relative" : "relative flex items-center gap-1"}
+      ref={rootRef}
+    >
+      {!fullWidth && <span className="text-gray-500">City</span>}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1 rounded border border-gray-300 bg-white px-1.5 py-1 max-w-[14rem]"
+        className={
+          fullWidth
+            ? "flex h-12 w-full items-center justify-between gap-1 rounded-xl border border-gray-300 bg-white px-3 text-base text-gray-900"
+            : "flex items-center gap-1 rounded border border-gray-300 bg-white px-1.5 py-1 max-w-[14rem]"
+        }
       >
-        <span className="truncate">{value || "all"}</span>
+        <span className="truncate">{value || "All cities"}</span>
         <span className="text-gray-400">▾</span>
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-20 mt-1 w-64 rounded-md border border-gray-300 bg-white shadow-lg">
+        <div
+          className={
+            fullWidth
+              ? "mt-2 w-full rounded-xl border border-gray-200 bg-white"
+              : "absolute left-0 top-full z-20 mt-1 w-64 rounded-md border border-gray-300 bg-white shadow-lg"
+          }
+        >
           <div className="border-b border-gray-100 p-2">
             <input
               ref={inputRef}
@@ -90,18 +117,18 @@ export default function CityFilter({ value, onChange, cities, topCount }: CityFi
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Filter cities…"
-              className="w-full rounded border border-gray-300 px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-orange-300"
+              className="w-full rounded border border-gray-300 px-2 py-1.5 text-base sm:text-sm outline-none focus:ring-2 focus:ring-orange-300"
             />
           </div>
-          <div className="max-h-72 overflow-y-auto py-1">
+          <div className={`overflow-y-auto py-1 ${fullWidth ? "max-h-60" : "max-h-72"}`}>
             <button
               type="button"
               onClick={() => choose("")}
-              className={`block w-full px-3 py-1 text-left hover:bg-orange-50 ${
+              className={`block w-full px-3 text-left hover:bg-orange-50 ${itemPad} ${
                 value === "" ? "bg-orange-100 font-medium text-orange-800" : "text-gray-700"
               }`}
             >
-              all cities
+              All cities
             </button>
 
             {grouped ? (
