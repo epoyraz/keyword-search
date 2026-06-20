@@ -1,0 +1,34 @@
+lib/readPdfText.ts
+  s_4535e2d701c42f::t_3c6ff1e7606b37 1-4,9,11,26-27,29-67
+  s_4535e2d701c42f::t_73331b7ca44d9b 5-8,10,12-25,28
+app/page.tsx
+  s_4535e2d701c42f::t_8cd6d40a76fdfb 339,346
+  s_4535e2d701c42f::t_201ee6e83cec8f 374-376,378,390,399
+  s_4535e2d701c42f::t_93d25f827f35a7 176-184
+  s_4535e2d701c42f::t_3092e0ccda9ef6 730
+  s_4535e2d701c42f::t_b4167eef36ee67 42-57
+  s_4535e2d701c42f::t_db4ff9f27561b5 310-317
+  s_4535e2d701c42f::t_1efd19e8aff1cb 6-7
+  s_4535e2d701c42f::t_cb57102bf25c7e 449-457,477-478,482-486,489,491-504,507-510,512-523,525-529
+  s_4535e2d701c42f::t_c507e1a5a5b837 194-196,219-292,294
+  s_4535e2d701c42f::t_b3fa06fa86d984 576-595,599-637
+  s_4535e2d701c42f::t_f0485b43b29f10 776-782
+lib/skillExtraction.ts
+  s_4535e2d701c42f::t_3346a65bf33265 1-328
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "276ba4e751ff554d197250c225c7879f07b9fb28",
+  "prompts": {},
+  "sessions": {
+    "s_4535e2d701c42f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6b116e18-9ab1-4b45-9285-e7eed782ecde",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
