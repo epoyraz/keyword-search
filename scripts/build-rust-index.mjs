@@ -61,9 +61,15 @@ export async function buildRustIndex(jobsJson) {
   mini.addAllJSON(jobsJson);
   const bytes = Buffer.from(mini.toBytes());
   await writeVariants(path.join(PUBLIC_DIR, "search-index.bin"), bytes);
-  // Version the cache key by the index CONTENT (data + format), so a format
-  // change busts client caches even when the underlying job data is unchanged.
-  const version = createHash("sha1").update(bytes).digest("hex").slice(0, 12);
+  // Version (cache key) = hash of the index bytes AND an asset-schema tag. The
+  // index bytes cover the data + engine snapshot format, but NOT the shape of
+  // the *other* served assets — `jobs.json` and the new on-demand descriptions.
+  // Bump ASSET_SCHEMA whenever that shape changes so a structural change busts
+  // the `immutable` client caches even when the index bytes are unchanged.
+  //   1 = full jobs.json (descriptions inline)
+  //   2 = metadata-only jobs.json + /dl/desc descriptions
+  const ASSET_SCHEMA = "2";
+  const version = createHash("sha1").update(ASSET_SCHEMA).update(bytes).digest("hex").slice(0, 12);
   return { indexBytes: bytes.length, version };
 }
 
