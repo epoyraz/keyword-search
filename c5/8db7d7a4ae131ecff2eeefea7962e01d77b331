@@ -1,0 +1,19 @@
+.gcloudignore
+  s_4535e2d701c42f::t_c8eb3b1d56c92b 10-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "c58db7d7a4ae131ecff2eeefea7962e01d77b331",
+  "prompts": {},
+  "sessions": {
+    "s_4535e2d701c42f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6b116e18-9ab1-4b45-9285-e7eed782ecde",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
