@@ -1,0 +1,75 @@
+scripts/build-index.mjs
+  s_4535e2d701c42f::t_f2731635cb41f1 137-138
+  s_4535e2d701c42f::t_8325d906a75e51 93-102,114-123
+  s_4535e2d701c42f::t_a0c2fb141a6ca4 5-11
+  s_4535e2d701c42f::t_b822b077e4b605 103-113
+docs/lazy-descriptions-plan.md
+  s_4535e2d701c42f::t_b8c8686fbcba1d 3-12
+lib/descriptions.ts
+  s_4535e2d701c42f::t_6bbcea7324b093 1-39
+lib/search.worker.ts
+  s_4535e2d701c42f::t_b4ee49a8e7f30a 372
+  s_4535e2d701c42f::t_2f81d5bbf944e0 385-386
+  s_4535e2d701c42f::t_6ac45c48108be9 239-242
+  s_4535e2d701c42f::t_dd58176be35906 305-317,319-320
+  s_4535e2d701c42f::t_c91c2688db77f5 231-234
+  s_4535e2d701c42f::t_838034bb7636dd 101-112,114-124
+  s_4535e2d701c42f::t_6511bc68509e7b 10,24-29
+  s_4535e2d701c42f::t_5c260c90b75fec 55-56
+  s_4535e2d701c42f::t_449f7eeea8d5f0 211-216,221,225
+app/dl/desc/route.ts
+  s_4535e2d701c42f::t_cd93a9d5304d4d 1-97
+Dockerfile
+  s_4535e2d701c42f::t_0d92c7003ce171 23-24
+lib/types.ts
+  s_4535e2d701c42f::t_2b012e63b1d706 11-16
+DEPLOY.md
+  s_4535e2d701c42f::t_f8ea0440eb7e73 38-41
+app/dl/[file]/route.ts
+  s_4535e2d701c42f::t_58654eff224c50 16-19
+scripts/build-rust-index.mjs
+  s_4535e2d701c42f::t_98e5e10a994005 90-97
+  s_4535e2d701c42f::t_69d6ddfa92d9a8 3-4
+scripts/loadDocs.mjs
+  s_4535e2d701c42f::t_e889bc99651604 1-18
+app/page.tsx
+  s_4535e2d701c42f::t_d6e52e4fbab681 322,333
+  s_4535e2d701c42f::t_dba8eb8234b02c 599
+  s_4535e2d701c42f::t_3feb2b90533e62 5
+  s_4535e2d701c42f::t_1f03af280fd072 159
+  s_4535e2d701c42f::t_0b1e00cdb15d10 160-163
+  s_4535e2d701c42f::t_a6d2121df48f1a 303,308-310,313
+  s_4535e2d701c42f::t_e3eb03bf39e6c1 157
+  s_4535e2d701c42f::t_06f5c4c8acaf35 296-302,304-307,311-312,314
+  s_4535e2d701c42f::t_0e6931da70762d 709
+  s_4535e2d701c42f::t_b0406bb0548456 631-636,638,640
+scripts/bench-search-engines.mjs
+  s_4535e2d701c42f::t_acf9329a325ec7 11,16
+  s_4535e2d701c42f::t_225a1c76c9b094 233-234,239
+  s_4535e2d701c42f::t_599b258e7b2020 265
+scripts/bench-minisearch-vs-wasm.mjs
+  s_4535e2d701c42f::t_14d4b76a06f987 212
+  s_4535e2d701c42f::t_daf47eb8509b50 19,23
+  s_4535e2d701c42f::t_c8c17e482a605e 181-182,186
+scripts/bench-searchjoined.mjs
+  s_4535e2d701c42f::t_030a0a765314f3 25,28
+  s_4535e2d701c42f::t_93be1837eb78e3 179-180
+lib/benchEngine.ts
+  s_4535e2d701c42f::t_1c20a2ecdc8392 342,344,348,352-357
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "2f98407fb61720decd52b1b89b527fd7752b8954",
+  "prompts": {},
+  "sessions": {
+    "s_4535e2d701c42f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6b116e18-9ab1-4b45-9285-e7eed782ecde",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": null
+    }
+  }
+}
