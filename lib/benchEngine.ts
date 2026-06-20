@@ -339,14 +339,22 @@ export async function loadEngines(): Promise<LoadedEngines> {
   const stats = (await metaRes.json()) as LoadedEngines["stats"];
   const v = encodeURIComponent(stats.version);
 
-  const [docsRes, idxRes] = await Promise.all([
+  const [docsRes, descRes, idxRes] = await Promise.all([
     fetch(`/dl/jobs.json?v=${v}`),
+    fetch(`/dl/descriptions.json?v=${v}`),
     fetch(`/dl/search-index.bin?v=${v}`),
   ]);
   if (!docsRes.ok) throw new Error(`load failed: docs ${docsRes.status}`);
+  if (!descRes.ok) throw new Error(`load failed: descriptions ${descRes.status}`);
   if (!idxRes.ok) throw new Error(`load failed: index ${idxRes.status}`);
 
   const jobs = JSON.parse(await docsRes.text()) as Job[];
+  // jobs.json is metadata-only in the app; the in-browser JS engine indexes raw
+  // text via addAll, so merge the full descriptions back here — both engines
+  // then index an identical document set (the wasm snapshot has them baked in),
+  // and the result panels can render preview snippets from job.description.
+  const descriptions = JSON.parse(await descRes.text()) as Record<string, string>;
+  for (const j of jobs) j.description = descriptions[j.id] ?? "";
   const byId = new Map(jobs.map((j) => [j.id, j]));
   const indexBytes = new Uint8Array(await idxRes.arrayBuffer());
 

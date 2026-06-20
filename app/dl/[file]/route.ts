@@ -13,6 +13,10 @@ export const dynamic = "force-dynamic";
 const CONTENT_TYPES: Record<string, string> = {
   "jobs.json": "application/json; charset=utf-8",
   "search-index.bin": "application/octet-stream",
+  // The whole descriptions file — only fetched wholesale by the localhost
+  // /benchmark page (to index the in-browser JS engine over identical docs).
+  // The app itself fetches per-id slices via /dl/desc instead.
+  "descriptions.json": "application/json; charset=utf-8",
 };
 
 export async function GET(

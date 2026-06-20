@@ -35,6 +35,11 @@ gcloud run deploy keyword-search \
   --cpu=1
 ```
 
+> **Memory:** `512Mi`. The `/dl/desc` route parses `public/descriptions.json`
+> once and keeps it resident (~50–80 MB) to serve per-id description slices
+> without re-reading 31 MB from disk per request. Estimated peak (~250–300 MB)
+> fits in 512Mi; bump to `1Gi` if the instance OOM-kills under load.
+
 Default service URL: `https://keyword-search-30518421759.europe-west1.run.app`.
 
 ## Custom domain: keyword-search.poyraz.digital

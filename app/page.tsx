@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { loadIndex, search as runSearch } from "@/lib/searchClient";
+import { fetchDescriptions } from "@/lib/descriptions";
 import type { Hit, IndexStats, SearchOutcome, SortMode } from "@/lib/types";
 import { highlight, snippet } from "@/lib/highlight";
 import CityFilter from "./CityFilter";
@@ -153,6 +154,13 @@ export default function Home() {
   const [recents, setRecents] = useState<string[]>([]);
   const [searchFocused, setSearchFocused] = useState(false);
   const [dragY, setDragY] = useState(0); // sheet swipe-to-dismiss offset
+  const [dragging, setDragging] = useState(false); // active drag (disables transition)
+
+  // Preview descriptions are fetched lazily (they're no longer in jobs.json) for
+  // just the visible slice, cached by id (in state so the list re-renders when a
+  // batch lands), and re-fetched on "Show more". An id mapped to "" is a known
+  // blank — distinct from `undefined` (not fetched yet).
+  const [descById, setDescById] = useState<Record<string, string>>({});
 
   const chooseDays = (d: number) => {
     setDays(d);
@@ -285,6 +293,25 @@ export default function Home() {
     };
   }, [ready, debouncedQuery, sort, company, city, postedAfter]);
 
+  // Lazily fetch descriptions for the visible slice (id-cached across queries —
+  // raw text doesn't depend on the query, only the highlight terms do).
+  useEffect(() => {
+    if (!stats || !outcome) return;
+    const missing = outcome.hits
+      .slice(0, limit)
+      .map((h) => h.id)
+      .filter((id) => !(id in descById));
+    if (missing.length === 0) return;
+    fetchDescriptions(missing, stats.version)
+      .then((map) => {
+        // Record every requested id (absent ⇒ "") so blanks aren't refetched.
+        const next: Record<string, string> = {};
+        for (const id of missing) next[id] = map[id] ?? "";
+        setDescById((prev) => ({ ...prev, ...next }));
+      })
+      .catch(() => {});
+  }, [outcome, limit, stats, descById]);
+
   const visible: Hit[] = outcome ? outcome.hits.slice(0, limit) : [];
   const resultCount = outcome ? `${outcome.total.toLocaleString()} results` : "";
   const showSuggest = searchFocused && query.trim() === "";
@@ -292,6 +319,7 @@ export default function Home() {
   // Sheet swipe-to-dismiss (drag the handle/header down to close).
   const onDragStart = (e: React.TouchEvent) => {
     dragStart.current = e.touches[0].clientY;
+    setDragging(true);
   };
   const onDragMove = (e: React.TouchEvent) => {
     if (dragStart.current == null) return;
@@ -302,6 +330,7 @@ export default function Home() {
     if (dragY > 100) setSheetOpen(false);
     setDragY(0);
     dragStart.current = null;
+    setDragging(false);
   };
 
   return (
@@ -567,6 +596,7 @@ export default function Home() {
             const loc = clean(hit.location);
             const type = fmtType(hit.employmentType);
             const posted = fmtPosted(hit.datePosted, now);
+            const desc = descById[hit.id];
             return (
               <li
                 key={hit.id}
@@ -598,11 +628,16 @@ export default function Home() {
                     {type && <span>· {type}</span>}
                     {posted.label && <span>· {posted.label}</span>}
                   </div>
-                  {hit.description && (
+                  {desc === undefined ? (
+                    <div
+                      aria-hidden
+                      className="mt-1.5 h-3 w-11/12 animate-pulse rounded bg-gray-100 sm:mt-1"
+                    />
+                  ) : desc ? (
                     <p className="mt-1.5 text-sm text-gray-700 sm:mt-1 sm:text-[13px]">
-                      {highlight(snippet(hit.description, hit.terms), hit.terms)}
+                      {highlight(snippet(desc, hit.terms), hit.terms)}
                     </p>
-                  )}
+                  ) : null}
                   {hit.matched.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1 sm:hidden">
                       {hit.matched.map((m) => (
@@ -671,7 +706,7 @@ export default function Home() {
           className="absolute inset-x-0 bottom-0 flex max-h-[88vh] flex-col rounded-t-2xl bg-white shadow-2xl transition-transform duration-300 will-change-transform"
           style={{
             transform: sheetOpen ? `translateY(${dragY}px)` : "translateY(100%)",
-            transition: dragStart.current != null ? "none" : undefined,
+            transition: dragging ? "none" : undefined,
           }}
         >
           <div

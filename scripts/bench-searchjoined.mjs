@@ -22,9 +22,10 @@ import { performance } from "node:perf_hooks";
 import MiniSearch from "minisearch";
 import init, { MiniSearchWasm } from "minisearch-wasm";
 import { miniSearchOptions } from "../lib/searchConfig.mjs";
+import { loadFullDocs } from "./loadDocs.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const JOBS_FILE = path.resolve(ROOT, "public", "jobs.json");
+const PUBLIC_DIR = path.resolve(ROOT, "public");
 const INDEX_BIN = path.resolve(ROOT, "public", "search-index.bin");
 const WASM_FILE = path.resolve(ROOT, "node_modules", "minisearch-wasm", "minisearch_wasm_bg.wasm");
 
@@ -175,12 +176,11 @@ async function main() {
   console.log("searchJoined benchmark + identity proof (vs original minisearch)");
   console.log(`queries: ${QUERY_SET.length}, warmup: ${warmupIterations}, iterations: ${iterations}`);
 
-  const [jobsJson, indexBin, wasmBin] = await Promise.all([
-    readFile(JOBS_FILE, "utf8"),
+  const [{ jobs }, indexBin, wasmBin] = await Promise.all([
+    loadFullDocs(PUBLIC_DIR),
     readFile(INDEX_BIN),
     readFile(WASM_FILE),
   ]);
-  const jobs = JSON.parse(jobsJson);
   console.log(`\ndocs: ${num(jobs.length)}`);
 
   await init({ module_or_path: wasmBin });

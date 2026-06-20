@@ -8,7 +8,12 @@ export interface Job {
   datePosted: string;
   validThrough: string;
   url: string;
-  description: string;
+  /**
+   * The full posting text. Stripped from the metadata-only jobs.json to shrink
+   * the cold-start download; fetched on demand from /dl/desc (for previews, and
+   * for the few advanced operators that scan raw text). Absent unless loaded.
+   */
+  description?: string;
 }
 
 export interface Hit extends Job {

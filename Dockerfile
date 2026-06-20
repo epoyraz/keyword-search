@@ -20,7 +20,8 @@ ENV HOSTNAME=0.0.0.0
 RUN addgroup -S app && adduser -S app -G app
 COPY --from=builder --chown=app:app /app/.next/standalone ./
 COPY --from=builder --chown=app:app /app/.next/static ./.next/static
-# public/ holds the baked jobs.json + search-meta.json (the entire dataset).
+# public/ holds the baked assets: jobs.json (metadata-only), descriptions.json
+# (served per-id via /dl/desc), search-index.bin, and search-meta.json.
 COPY --from=builder --chown=app:app /app/public ./public
 USER app
 EXPOSE 8080

@@ -1,6 +1,7 @@
 // Build the minisearch-wasm binary index snapshot the worker loads at runtime.
 //
-// - Reads public/jobs.json (the same doc store the JS index is built from).
+// - Reads public/jobs.json (metadata-only) + public/descriptions.json and
+//   merges them back into full docs (the index tokenizes descriptions too).
 // - Builds a MiniSearchWasm index with the shared search config and writes
 //   public/search-index.bin (+ .gz/.br) — the worker fetches it via /dl.
 //
@@ -86,7 +87,14 @@ async function updateMetaVersion(version) {
 const mb = (n) => `${(n / 1024 / 1024).toFixed(1)} MB`;
 
 async function main() {
-  const jobsJson = await readFile(path.join(PUBLIC_DIR, "jobs.json"), "utf8");
+  // jobs.json is metadata-only now; re-merge descriptions so the index is built
+  // from full docs (matching build-index.mjs).
+  const jobs = JSON.parse(await readFile(path.join(PUBLIC_DIR, "jobs.json"), "utf8"));
+  const descriptions = JSON.parse(
+    await readFile(path.join(PUBLIC_DIR, "descriptions.json"), "utf8"),
+  );
+  for (const j of jobs) j.description = descriptions[j.id] ?? "";
+  const jobsJson = JSON.stringify(jobs);
   const { indexBytes, version } = await buildRustIndex(jobsJson);
   await updateMetaVersion(version);
   console.log(`Wrote public/search-index.bin — ${mb(indexBytes)} (+ .gz/.br)`);

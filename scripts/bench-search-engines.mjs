@@ -8,11 +8,12 @@ import {
   SEARCH_OPTIONS,
   miniSearchOptions,
 } from "../lib/searchConfig.mjs";
+import { loadFullDocs } from "./loadDocs.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 const RUST_PKG = path.resolve(ROOT, "..", "..", "minisearch-rust", "pkg");
-const JOBS_FILE = path.resolve(ROOT, "public", "jobs.json");
+const PUBLIC_DIR = path.resolve(ROOT, "public");
 const JS_INDEX_FILE = path.resolve(ROOT, "public", "search-index.json");
 const RUST_WASM_FILE = path.resolve(RUST_PKG, "minisearch_rust_bg.wasm");
 const RUST_JS_FILE = path.resolve(RUST_PKG, "minisearch_rust.js");
@@ -229,14 +230,13 @@ async function main() {
   console.log(`queries: ${QUERY_SET.length}, warmup: ${warmupIterations}, iterations: ${iterations}`);
   console.log(`rust pkg: ${RUST_PKG}`);
 
-  const [jobsJson, jsIndexJson] = await Promise.all([
-    readFile(JOBS_FILE, "utf8"),
+  const [{ jobs, fullJobsJson, metaJobsJson }, jsIndexJson] = await Promise.all([
+    loadFullDocs(PUBLIC_DIR),
     readFile(JS_INDEX_FILE, "utf8"),
   ]);
-  const jobs = JSON.parse(jobsJson);
 
   console.log(`\ndocs: ${formatNumber(jobs.length)}`);
-  console.log(`jobs.json: ${bytes(Buffer.byteLength(jobsJson))}`);
+  console.log(`jobs.json: ${bytes(Buffer.byteLength(metaJobsJson))} (metadata)`);
   console.log(`js search-index.json: ${bytes(Buffer.byteLength(jsIndexJson))}`);
 
   const rustModule = await import(pathToFileURL(RUST_JS_FILE).href);
@@ -262,7 +262,7 @@ async function main() {
   });
   const rustBuild = measure("Rust/Wasm addAllJSON", () => {
     const mini = new MiniSearchWasm(rustOptions);
-    mini.addAllJSON(jobsJson);
+    mini.addAllJSON(fullJobsJson);
     return mini;
   });
   const rustIndex = measure("Rust/Wasm toJSONString", () =>

@@ -1,7 +1,15 @@
 # Lazy descriptions — smaller download / faster cold start
 
-> Status: **planned, not implemented** (deferred to a later session).
-> Decision locked in: advanced operators stay **exact**, fetching descriptions **on demand**.
+> Status: **implemented** (2026-06-20). Advanced operators stay **exact**,
+> fetching descriptions **on demand**.
+>
+> **Measured result:** `jobs.json` 38 MB → **7.1 MB raw / 802 KB br** (metadata
+> only); descriptions split into `descriptions.json` (31.2 MB / 4.2 MB br),
+> served per-id via `/dl/desc`. Cold-start download ~8 MB br → **~4.2 MB br**
+> (index 3.4 MB + jobs 0.8 MB). Previews lazy-fetch ~23 KB br / 30 results.
+> Search results verified **identical** to the full-description build across
+> plain / phrase / negation / `desc:` queries (lazy app == benchmark wasm ==
+> benchmark JS: 373/136/706/79 results respectively; `bench:joined` 44/44).
 
 ## Context — why do this
 `public/jobs.json` is **38 MB raw** and is fetched + `JSON.parse`-d by the search worker on every page load. Measured: **22,028 entries, avg description 1,445 chars, max 196,423 chars — ~32 MB of the 38 MB is descriptions.** Everything else (title/company/org/location/url/dates) is tiny.

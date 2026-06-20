@@ -16,10 +16,11 @@ import { performance } from "node:perf_hooks";
 import MiniSearch from "minisearch";
 import init, { MiniSearchWasm } from "minisearch-wasm";
 import { SEARCH_FIELDS, SEARCH_OPTIONS, miniSearchOptions } from "../lib/searchConfig.mjs";
+import { loadFullDocs } from "./loadDocs.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
-const JOBS_FILE = path.resolve(ROOT, "public", "jobs.json");
+const PUBLIC_DIR = path.resolve(ROOT, "public");
 const INDEX_BIN = path.resolve(ROOT, "public", "search-index.bin");
 const WASM_FILE = path.resolve(ROOT, "node_modules", "minisearch-wasm", "minisearch_wasm_bg.wasm");
 
@@ -177,13 +178,12 @@ async function main() {
   console.log("minisearch vs minisearch-wasm — headless benchmark");
   console.log(`queries: ${QUERY_SET.length}, warmup: ${warmupIterations}, iterations: ${iterations}, topK: ${topK}`);
 
-  const [jobsJson, indexBin, wasmBin] = await Promise.all([
-    readFile(JOBS_FILE, "utf8"),
+  const [{ jobs, fullJobsJson, metaJobsJson }, indexBin, wasmBin] = await Promise.all([
+    loadFullDocs(PUBLIC_DIR),
     readFile(INDEX_BIN),
     readFile(WASM_FILE),
   ]);
-  const jobs = JSON.parse(jobsJson);
-  console.log(`\ndocs: ${num(jobs.length)} · jobs.json ${mb(Buffer.byteLength(jobsJson))} · search-index.bin ${mb(indexBin.byteLength)}`);
+  console.log(`\ndocs: ${num(jobs.length)} · jobs.json ${mb(Buffer.byteLength(metaJobsJson))} (metadata) · search-index.bin ${mb(indexBin.byteLength)}`);
 
   await init({ module_or_path: wasmBin });
 
@@ -209,7 +209,7 @@ async function main() {
   });
   const wasmBuild = measure("minisearch-wasm addAllJSON", () => {
     const mini = new MiniSearchWasm(wasmOptions);
-    mini.addAllJSON(jobsJson);
+    mini.addAllJSON(fullJobsJson);
     return mini;
   });
   wasmBuild.value.free(); // not needed past the timing; release wasm memory

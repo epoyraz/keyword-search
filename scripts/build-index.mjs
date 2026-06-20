@@ -2,10 +2,14 @@
 //
 // Source: GCS latest/job_details.json (a minified array of detail rows, produced
 // daily by jobboard-data/detail_runner.py). Output (baked into the image):
-//   - public/jobs.json (+ .gz/.br) — the document store the worker indexes.
+//   - public/jobs.json (+ .gz/.br) — metadata-only document store (no
+//     description) the worker loads for filtering/sorting/rendering.
+//   - public/descriptions.json (+ .gz/.br) — { id: description } map, fetched
+//     on demand (per id) via /dl/desc. ~32 MB of the old 38 MB jobs.json lived
+//     here; splitting it out is what shrinks the cold-start download.
+//   - public/search-index.bin (+ .gz/.br) — the prebuilt wasm index, built from
+//     the FULL docs (descriptions included) so term/BM25 search is unchanged.
 //   - public/search-meta.json — stats + version pointer for the filter UI.
-// The wasm search index is built in the worker from jobs.json (addAllJSON), so
-// there is no prebuilt binary to generate here.
 //
 // Run: npm run index   (the Dockerfile runs this at image-build time)
 
@@ -85,14 +89,38 @@ async function main() {
 
   if (!existsSync(PUBLIC_DIR)) await mkdir(PUBLIC_DIR, { recursive: true });
 
-  const docsJson = JSON.stringify(jobs);
-  await writeVariants(path.join(PUBLIC_DIR, "jobs.json"), docsJson);
-
   // Build the prebuilt wasm index snapshot (public/search-index.bin + .gz/.br)
-  // from the same docs the worker renders. Its content hash is the cache key:
-  // it changes when the data OR the engine's snapshot format changes, so a
-  // client never loads a stale/incompatible .bin against a newer engine.
-  const { indexBytes, version } = await buildRustIndex(docsJson);
+  // from the FULL docs (descriptions included), so term/BM25 search over
+  // descriptions is unchanged. Its content hash is the cache key: it changes
+  // when the data OR the engine's snapshot format changes, so a client never
+  // loads a stale/incompatible .bin against a newer engine.
+  const fullDocsJson = JSON.stringify(jobs);
+  const { indexBytes, version } = await buildRustIndex(fullDocsJson);
+
+  // Split the docs: a metadata-only jobs.json (small — what the worker loads up
+  // front) and a separate { id: description } map fetched on demand. Skip blank
+  // descriptions so absent ⇒ known-empty (saves bytes and a fetch round-trip).
+  const metaJobs = jobs.map((j) => ({
+    id: j.id,
+    title: j.title,
+    company: j.company,
+    org: j.org,
+    location: j.location,
+    employmentType: j.employmentType,
+    datePosted: j.datePosted,
+    validThrough: j.validThrough,
+    url: j.url,
+  }));
+  await writeVariants(path.join(PUBLIC_DIR, "jobs.json"), JSON.stringify(metaJobs));
+
+  const descriptions = {};
+  for (const j of jobs) {
+    if (j.description) descriptions[j.id] = j.description;
+  }
+  await writeVariants(
+    path.join(PUBLIC_DIR, "descriptions.json"),
+    JSON.stringify(descriptions),
+  );
   const { cities, topCityCount } = buildCityMeta(jobs);
   const meta = {
     total: jobs.length,
@@ -106,7 +134,8 @@ async function main() {
   const mb = async (f) => ((await stat(f)).size / 1024 / 1024).toFixed(1);
   console.log(`Indexed ${jobs.length} jobs from ${meta.companies.length} companies; `
     + `${cities.length} cities; version ${version}`);
-  console.log(`Wrote public/jobs.json — ${await mb(path.join(PUBLIC_DIR, "jobs.json"))} MB (+ .gz/.br)`);
+  console.log(`Wrote public/jobs.json — ${await mb(path.join(PUBLIC_DIR, "jobs.json"))} MB metadata-only (+ .gz/.br)`);
+  console.log(`Wrote public/descriptions.json — ${await mb(path.join(PUBLIC_DIR, "descriptions.json"))} MB (+ .gz/.br)`);
   console.log(`Wrote public/search-index.bin — ${(indexBytes / 1048576).toFixed(1)} MB (+ .gz/.br)`);
   console.log(`Wrote public/search-meta.json`);
 }

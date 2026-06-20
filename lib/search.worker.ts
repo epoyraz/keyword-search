@@ -7,6 +7,7 @@
 
 import init, { MiniSearchWasm } from "minisearch-wasm";
 import { tokenize, processTerm } from "./searchConfig.mjs";
+import { fetchDescriptions } from "./descriptions";
 import type {
   Job,
   Hit,
@@ -20,6 +21,12 @@ import type {
 let jobs: Job[] = [];
 let byId = new Map<string, Job>();
 let mini: MiniSearchWasm | null = null;
+let version = "";
+
+// Descriptions are no longer in jobs.json — fetched on demand (and cached for
+// the session) only for the advanced operators that scan raw text. Plain term
+// queries never touch this. Absent id ⇒ known-empty description.
+const descCache = new Map<string, string>();
 
 // Shape returned by MiniSearchWasm.searchJoined: the whole result set as a
 // Float64Array of scores plus newline-joined id/term strings (split natively).
@@ -45,7 +52,8 @@ function post(msg: WorkerResponse) {
   ctx.postMessage(msg);
 }
 
-async function load(version: string) {
+async function load(v0: string) {
+  version = v0;
   const v = encodeURIComponent(version);
   // Docs (for rendering hit details via byId) and the prebuilt wasm index
   // snapshot are fetched in parallel from the server's /dl provider. The index
@@ -90,8 +98,30 @@ function byDateDesc(a: Job, b: Job): number {
   return (b.datePosted || "").localeCompare(a.datePosted || "");
 }
 
+// Raw description for a job — from the lazy cache, not the (stripped) job
+// object. Only the advanced-query path reads this, and only after fetching.
+function descOf(job: Job): string {
+  return descCache.get(job.id) ?? "";
+}
+
+// Field text for clause matching. Every field but `description` lives on the
+// metadata job object; `description` comes from the lazy cache.
+function fieldValue(job: Job, f: keyof Job): string {
+  return f === "description" ? descOf(job) : String(job[f] ?? "");
+}
+
 function searchableText(j: Job): string {
-  return `${j.title} ${j.company} ${j.location} ${j.org} ${j.description}`.toLowerCase();
+  return `${j.title} ${j.company} ${j.location} ${j.org} ${descOf(j)}`.toLowerCase();
+}
+
+// Fetch (and cache) descriptions for any of `ids` not seen yet. No-op when all
+// are cached, so the common path that never needs descriptions stays sync-fast.
+async function ensureDescriptions(ids: string[]): Promise<void> {
+  const missing = ids.filter((id) => !descCache.has(id));
+  if (missing.length === 0) return;
+  const map = await fetchDescriptions(missing, version);
+  // Record every requested id (absent ⇒ "") so we never refetch a blank one.
+  for (const id of missing) descCache.set(id, map[id] ?? "");
 }
 
 const FIELD_ALIASES: Record<string, Array<keyof Job>> = {
@@ -178,25 +208,38 @@ function parseAdvanced(input: string): { clauses: Clause[]; orMode: boolean } {
   return { clauses, orMode };
 }
 
+// Does this clause scan the (lazy) description field? Such clauses force a
+// description fetch for the candidate set before the post-filter runs.
+function clauseUsesDescription(c: Clause): boolean {
+  return (c.fields ?? ALL_TEXT_FIELDS).includes("description");
+}
+
 function clauseMatches(job: Job, c: Clause): boolean {
   const fields = c.fields ?? ALL_TEXT_FIELDS;
   const val = c.value.toLowerCase();
   if (c.phrase) {
-    return fields.some((f) => String(job[f] ?? "").toLowerCase().includes(val));
+    return fields.some((f) => fieldValue(job, f).toLowerCase().includes(val));
   }
   const valTok = processTerm(val) ?? val;
   return fields.some((f) =>
-    tokenize(String(job[f] ?? "")).some((t) =>
+    tokenize(fieldValue(job, f)).some((t) =>
       (processTerm(t) ?? "").startsWith(valTok),
     ),
   );
 }
 
-function search(query: string, { sort, filters }: { sort: SortMode; filters: Filters }): SearchOutcome {
+async function search(
+  query: string,
+  { sort, filters }: { sort: SortMode; filters: Filters },
+): Promise<SearchOutcome> {
   const start = performance.now();
   const { clauses, orMode } = parseAdvanced(query.trim());
 
   let hits: Hit[];
+  // Time spent awaiting on-demand description fetches is data-loading, not search
+  // work — subtracted from the reported `ms` so it stays comparable to the
+  // common (no-fetch) path.
+  let fetchMs = 0;
 
   if (clauses.length === 0) {
     hits = jobs
@@ -259,10 +302,22 @@ function search(query: string, { sort, filters }: { sort: SortMode; filters: Fil
       c.phrase ? [c.value] : tokenize(c.value),
     );
 
-    hits = [];
-    for (const job of universe) {
-      if (!passesFilters(job, filters)) continue;
+    // Filters are cheap and need no description, so apply them first to bound
+    // the candidate set. Only then (and only if an operator scans raw text) do
+    // we fetch descriptions — for exactly the candidates, batched and cached.
+    const candidateJobs = universe.filter((j) => passesFilters(j, filters));
+    const needsDesc =
+      (!orMode && freeTextPhrases.length > 0) ||
+      negatives.some(clauseUsesDescription) ||
+      fieldPos.some(clauseUsesDescription);
+    if (needsDesc) {
+      const t = performance.now();
+      await ensureDescriptions(candidateJobs.map((j) => j.id));
+      fetchMs = performance.now() - t;
+    }
 
+    hits = [];
+    for (const job of candidateJobs) {
       const wh = wasmHits.get(job.id);
       const inWasm = wh !== undefined;
 
@@ -314,7 +369,7 @@ function search(query: string, { sort, filters }: { sort: SortMode; filters: Fil
     }
   }
 
-  return { hits, total: hits.length, ms: performance.now() - start };
+  return { hits, total: hits.length, ms: performance.now() - start - fetchMs };
 }
 
 ctx.onmessage = async (e: MessageEvent<WorkerRequest>) => {
@@ -327,6 +382,7 @@ ctx.onmessage = async (e: MessageEvent<WorkerRequest>) => {
     }
   } else if (msg.type === "search") {
     await loaded;
-    post({ type: "result", reqId: msg.reqId, outcome: search(msg.args.query, msg.args) });
+    const outcome = await search(msg.args.query, msg.args);
+    post({ type: "result", reqId: msg.reqId, outcome });
   }
 };
