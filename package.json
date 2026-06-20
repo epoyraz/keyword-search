@@ -8,11 +8,13 @@
     "start": "next start",
     "index": "node scripts/build-index.mjs",
     "bench:search": "node --expose-gc scripts/bench-search-engines.mjs",
+    "bench:wasm": "node --expose-gc scripts/bench-minisearch-vs-wasm.mjs",
+    "bench:joined": "node --expose-gc scripts/bench-searchjoined.mjs",
     "lint": "eslint"
   },
   "dependencies": {
     "minisearch": "^7.2.0",
-    "minisearch-wasm": "^0.3.0",
+    "minisearch-wasm": "^0.4.0",
     "next": "16.2.9",
     "react": "19.2.4",
     "react-dom": "19.2.4"
