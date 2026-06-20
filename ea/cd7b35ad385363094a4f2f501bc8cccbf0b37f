@@ -1,0 +1,19 @@
+docs/lazy-descriptions-plan.md
+  s_4535e2d701c42f::t_af5911b3ab56dd 1-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "eacd7b35ad385363094a4f2f501bc8cccbf0b37f",
+  "prompts": {},
+  "sessions": {
+    "s_4535e2d701c42f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6b116e18-9ab1-4b45-9285-e7eed782ecde",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
