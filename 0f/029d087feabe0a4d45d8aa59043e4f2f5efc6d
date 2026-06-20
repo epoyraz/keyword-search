@@ -1,0 +1,50 @@
+scripts/bench-minisearch-vs-wasm.mjs
+  s_4535e2d701c42f::t_5be69b4ed336ca 69-92
+  s_4535e2d701c42f::t_7702808b0ce153 1-68,93-189,205-214,216,218,223,225-249,254-259,261-268
+  s_4535e2d701c42f::t_a699b70ed5000c 190-204,215,217,219-222,224
+  s_4535e2d701c42f::t_a5fcbd0cf42a53 250-253
+  s_4535e2d701c42f::t_866e50c0731c41 260
+lib/benchEngine.ts
+  s_4535e2d701c42f::t_78e16659061954 1-138,149-435
+  s_4535e2d701c42f::t_71e68761d80c8e 139-148
+app/benchmark/page.tsx
+  s_4535e2d701c42f::t_aef4f416583a81 282
+  s_4535e2d701c42f::t_ece94621196992 79,86-90,107
+  s_4535e2d701c42f::t_da8f0e7d70e167 3
+  s_4535e2d701c42f::t_79272a7e1f0686 5-10
+  s_4535e2d701c42f::t_a81bac4dce7abd 1-2,4,11-47,51-78,80-85,91-106,108-281,283-314
+  s_4535e2d701c42f::t_2da4a552ee636d 48-50
+app/benchmark/ResultPanel.tsx
+  s_4535e2d701c42f::t_b43af7c44856e9 1-126
+package.json
+  s_4535e2d701c42f::t_e5de5f4920f241 17
+  s_4535e2d701c42f::t_62b6ef37a24124 12
+  s_4535e2d701c42f::t_0447eecfd38f31 11
+lib/format.ts
+  s_4535e2d701c42f::t_484d20be6d8061 1-54
+app/benchmark/BenchChart.tsx
+  s_4535e2d701c42f::t_9da2f030e67458 1-14,17-115,117-157,176-235
+  s_4535e2d701c42f::t_054caa87ef10df 116
+  s_4535e2d701c42f::t_c9f47111c060ed 158-175
+  s_4535e2d701c42f::t_64dc44941d6e38 15-16
+scripts/bench-searchjoined.mjs
+  s_4535e2d701c42f::t_9245597ac1a7bf 1-224
+app/benchmark/layout.tsx
+  s_4535e2d701c42f::t_ee36cba1870016 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "0f029d087feabe0a4d45d8aa59043e4f2f5efc6d",
+  "prompts": {},
+  "sessions": {
+    "s_4535e2d701c42f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6b116e18-9ab1-4b45-9285-e7eed782ecde",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
