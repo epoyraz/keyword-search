@@ -7,4 +7,12 @@ node_modules
 .vscode
 .idea
 .DS_Store
-# Keep public/jobs.json (the search index) and lib/scripts in the build context.
+# The big data assets are regenerated inside the image by `npm run index`
+# (see Dockerfile), so don't upload them — they bloat the Cloud Build source
+# upload to ~109 MB and time out source staging. lib/ and scripts/ stay.
+public/jobs.json*
+public/descriptions.json*
+public/search-index.bin*
+public/search-meta.json
+# Legacy JS index — no longer built or used by anything.
+public/search-index.json*
