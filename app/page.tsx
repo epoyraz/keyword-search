@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { loadIndex, search as runSearch } from "@/lib/searchClient";
 import { fetchDescriptions } from "@/lib/descriptions";
+import { readPdfText } from "@/lib/readPdfText";
+import { extractSkills } from "@/lib/skillExtraction";
 import type { Hit, IndexStats, SearchOutcome, SortMode } from "@/lib/types";
 import { highlight, snippet } from "@/lib/highlight";
 import CityFilter from "./CityFilter";
@@ -37,13 +39,22 @@ const POPULAR = [
 
 const RECENTS_KEY = "ks:recent";
 
-function useDebounced<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const id = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(id);
-  }, [value, delay]);
-  return debounced;
+// Build the worker query from the committed skill tags. Tags OR-combine (match
+// any skill, ranked by how many match); multi-word skills are quoted so each
+// stays a single clause. A lone tag is just a plain term query.
+function buildSkillQuery(skills: string[]): string {
+  const parts = skills
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => (/\s/.test(s) ? `"${s}"` : s));
+  if (parts.length === 0) return "";
+  return parts.length === 1 ? parts[0] : parts.join(" OR ");
+}
+
+// Tags can come from free-form CV text or typed input; drop quotes (they're our
+// phrase delimiter) and collapse whitespace so a tag stays one clean clause.
+function cleanSkill(raw: string): string {
+  return raw.replace(/"/g, "").replace(/\s+/g, " ").trim();
 }
 
 // Some scraped fields arrive as the literal string "null"/"undefined" or blank;
@@ -162,6 +173,15 @@ export default function Home() {
   // blank — distinct from `undefined` (not fetched yet).
   const [descById, setDescById] = useState<Record<string, string>>({});
 
+  // Committed skill tags drive the search (the input box only composes the next
+  // tag). Tags come from Enter / "Add skill" / a dropped CV.
+  const [skills, setSkills] = useState<string[]>([]);
+  const [cvStatus, setCvStatus] = useState<"idle" | "reading" | "error">("idle");
+  const [cvError, setCvError] = useState("");
+  const [cvName, setCvName] = useState("");
+  const [dropActive, setDropActive] = useState(false); // CV drag-over highlight
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const chooseDays = (d: number) => {
     setDays(d);
     setPostedAfter(
@@ -171,12 +191,14 @@ export default function Home() {
 
   const clearAll = () => {
     setQuery("");
+    setSkills([]);
+    setCvStatus("idle");
+    setCvError("");
     setCompany("");
     setCity("");
     chooseDays(0);
   };
 
-  const debouncedQuery = useDebounced(query, 120);
   const inputRef = useRef<HTMLInputElement>(null);
   const searchBoxRef = useRef<HTMLDivElement>(null);
   const dragStart = useRef<number | null>(null);
@@ -194,9 +216,82 @@ export default function Home() {
     });
   };
 
+  // Commit the typed text as a skill tag (Enter / "Add skill" / a suggestion).
+  const addSkill = (raw: string) => {
+    const v = cleanSkill(raw);
+    if (!v) return;
+    // First tag: switch to "most matches" ranking — the OR-search intent.
+    if (skills.length === 0 && sort === "relevance") setSort("matches");
+    setSkills((prev) =>
+      prev.some((s) => s.toLowerCase() === v.toLowerCase()) ? prev : [...prev, v],
+    );
+    addRecent(v);
+    setQuery("");
+  };
+
+  // Bulk-add (a dropped CV's extracted skills), de-duped case-insensitively.
+  const addSkills = (names: string[]) => {
+    const cleaned = names.map(cleanSkill).filter(Boolean);
+    if (cleaned.length === 0) return;
+    if (skills.length === 0 && sort === "relevance") setSort("matches");
+    setSkills((prev) => {
+      const seen = new Set(prev.map((s) => s.toLowerCase()));
+      const merged = [...prev];
+      for (const v of cleaned) {
+        if (!seen.has(v.toLowerCase())) {
+          seen.add(v.toLowerCase());
+          merged.push(v);
+        }
+      }
+      return merged;
+    });
+  };
+
+  const removeSkill = (s: string) => setSkills((prev) => prev.filter((x) => x !== s));
+
+  // Read a dropped/picked PDF CV in the browser and turn its skills into tags.
+  const handleCvFile = async (file?: File) => {
+    if (!file) return;
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setCvError("Please choose a PDF CV.");
+      setCvStatus("error");
+      return;
+    }
+    setCvName(file.name);
+    setCvStatus("reading");
+    setCvError("");
+    try {
+      const text = await readPdfText(file);
+      const names = extractSkills(text).map((s) => s.name);
+      if (names.length === 0) {
+        setCvError("No skills found — a scanned (image) CV would need OCR first.");
+        setCvStatus("error");
+        return;
+      }
+      addSkills(names);
+      setCvStatus("idle");
+    } catch (err) {
+      console.error(err);
+      setCvError("Could not read text from this PDF.");
+      setCvStatus("error");
+    }
+  };
+
+  const onCvDragOver = (e: React.DragEvent) => {
+    if (e.dataTransfer?.types?.includes("Files")) {
+      e.preventDefault();
+      setDropActive(true);
+    }
+  };
+  const onCvDragLeave = () => setDropActive(false);
+  const onCvDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDropActive(false);
+    void handleCvFile(e.dataTransfer.files?.[0]);
+  };
+
   const pickSearch = (q: string) => {
-    setQuery(q);
-    addRecent(q);
+    addSkill(q);
     setSearchFocused(false);
     inputRef.current?.blur();
   };
@@ -212,7 +307,14 @@ export default function Home() {
       if (Array.isArray(r)) setRecents(r.filter((x) => typeof x === "string").slice(0, 6));
     } catch {}
     const p = new URLSearchParams(window.location.search);
-    if (p.has("q")) setQuery(p.get("q") ?? "");
+    const sk = p.get("skills");
+    if (sk) {
+      setSkills(sk.split(",").map(cleanSkill).filter(Boolean));
+    } else if (p.has("q")) {
+      // Back-compat with old shareable links: a single free-text query → one tag.
+      const q = cleanSkill(p.get("q") ?? "");
+      if (q) setSkills([q]);
+    }
     const s = p.get("sort");
     if (s === "relevance" || s === "date" || s === "matches") setSort(s);
     if (p.has("company")) setCompany(p.get("company") ?? "");
@@ -234,14 +336,14 @@ export default function Home() {
   useEffect(() => {
     if (!hydrated) return;
     const p = new URLSearchParams();
-    if (query) p.set("q", query);
+    if (skills.length) p.set("skills", skills.join(","));
     if (sort !== "relevance") p.set("sort", sort);
     if (company) p.set("company", company);
     if (city) p.set("city", city);
     if (days) p.set("days", String(days));
     const qs = p.toString();
     window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
-  }, [hydrated, query, sort, company, city, days]);
+  }, [hydrated, skills, sort, company, city, days]);
 
   // Lock background scroll while the mobile filter sheet is open.
   useEffect(() => {
@@ -269,8 +371,11 @@ export default function Home() {
     };
   }, [searchFocused]);
 
+  // The committed skill tags are the actual search query.
+  const searchQuery = buildSkillQuery(skills);
+
   // Reset pagination whenever the query or a filter changes.
-  const viewKey = `${debouncedQuery}|${sort}|${company}|${city}|${days}`;
+  const viewKey = `${searchQuery}|${sort}|${company}|${city}|${days}`;
   const [prevViewKey, setPrevViewKey] = useState(viewKey);
   if (viewKey !== prevViewKey) {
     setPrevViewKey(viewKey);
@@ -282,7 +387,7 @@ export default function Home() {
     if (!ready) return;
     let cancelled = false;
     runSearch({
-      query: debouncedQuery,
+      query: searchQuery,
       sort,
       filters: { company, city, postedAfter },
     }).then((o) => {
@@ -291,7 +396,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [ready, debouncedQuery, sort, company, city, postedAfter]);
+  }, [ready, searchQuery, sort, company, city, postedAfter]);
 
   // Lazily fetch descriptions for the visible slice (id-cached across queries —
   // raw text doesn't depend on the query, only the highlight terms do).
@@ -341,7 +446,15 @@ export default function Home() {
           <span className="hidden sm:inline font-mono font-bold text-lg whitespace-nowrap">
             keyword-search
           </span>
-          <div className="relative flex-1" ref={searchBoxRef}>
+          <div
+            className={`relative flex-1 rounded-xl sm:rounded-md ${
+              dropActive ? "ring-2 ring-white" : ""
+            }`}
+            ref={searchBoxRef}
+            onDragOver={onCvDragOver}
+            onDragLeave={onCvDragLeave}
+            onDrop={onCvDrop}
+          >
             <svg
               aria-hidden
               viewBox="0 0 20 20"
@@ -359,34 +472,61 @@ export default function Home() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onFocus={() => setSearchFocused(true)}
-              onBlur={() => addRecent(query)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
-                  addRecent(query);
-                  setSearchFocused(false);
-                  inputRef.current?.blur();
+                  e.preventDefault();
+                  addSkill(query);
                 }
               }}
               placeholder={
-                stats
-                  ? `Search ${stats.total.toLocaleString()} job postings…`
-                  : "Loading…"
+                !stats
+                  ? "Loading…"
+                  : skills.length
+                    ? "Add another skill…"
+                    : "Add a skill, or drop your CV (PDF)…"
               }
               disabled={!ready}
-              className="w-full rounded-xl sm:rounded-md border-0 bg-white pl-9 pr-9 py-2.5 sm:py-2 text-base text-black placeholder-gray-500 outline-none focus:ring-2 focus:ring-orange-300 [&::-webkit-search-cancel-button]:hidden"
+              className="w-full rounded-xl sm:rounded-md border-0 bg-white pl-9 pr-16 py-2.5 sm:py-2 text-base text-black placeholder-gray-500 outline-none focus:ring-2 focus:ring-orange-300 [&::-webkit-search-cancel-button]:hidden"
             />
-            {query && (
+            <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
+              {query && (
+                <button
+                  type="button"
+                  aria-label="Clear input"
+                  onClick={() => {
+                    setQuery("");
+                    inputRef.current?.focus();
+                  }}
+                  className="flex h-6 w-6 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              )}
               <button
                 type="button"
-                aria-label="Clear search"
-                onClick={() => {
-                  setQuery("");
-                  inputRef.current?.focus();
-                }}
-                className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                aria-label="Upload a PDF CV to add its skills"
+                title="Upload a PDF CV to add its skills"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex h-6 w-6 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-orange-600"
               >
-                ✕
+                <svg
+                  aria-hidden
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M21.44 11.05l-9.19 9.19a5 5 0 01-7.07-7.07l9.19-9.19a3 3 0 014.24 4.24l-9.2 9.19a1 1 0 01-1.41-1.41l8.49-8.49" />
+                </svg>
               </button>
+            </div>
+            {dropActive && (
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl sm:rounded-md bg-[#ff6600]/95 text-sm font-semibold text-white">
+                Drop your CV to add skills
+              </div>
             )}
 
             {showSuggest && (
@@ -433,8 +573,68 @@ export default function Home() {
               </div>
             )}
           </div>
+
+          <button
+            type="button"
+            onClick={() => addSkill(query)}
+            disabled={!ready || !query.trim()}
+            className="shrink-0 rounded-xl sm:rounded-md bg-white px-3 py-2.5 text-sm font-semibold text-orange-700 shadow-sm hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-50 sm:py-2"
+          >
+            Add skill
+          </button>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf,.pdf"
+            className="hidden"
+            onChange={(e) => {
+              void handleCvFile(e.target.files?.[0]);
+              e.target.value = "";
+            }}
+          />
         </div>
       </header>
+
+      {/* Skill tags — the committed query. Press Enter / Add skill, or drop a CV. */}
+      {(skills.length > 0 || cvStatus !== "idle") && (
+        <div className="border-b border-gray-200 bg-white">
+          <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-2 px-3 py-2 sm:px-4">
+            {skills.map((s) => (
+              <span
+                key={s}
+                className="inline-flex items-center gap-1 rounded-full bg-orange-100 py-1 pl-3 pr-1.5 text-sm font-medium text-orange-800"
+              >
+                <span className="max-w-[12rem] truncate">{s}</span>
+                <button
+                  type="button"
+                  onClick={() => removeSkill(s)}
+                  aria-label={`Remove ${s}`}
+                  className="flex h-5 w-5 items-center justify-center rounded-full text-orange-700 hover:bg-orange-200"
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+            {skills.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setSkills([])}
+                className="ml-1 text-xs font-medium text-gray-500 hover:text-orange-600 hover:underline"
+              >
+                Clear skills
+              </button>
+            )}
+            {cvStatus === "reading" && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-gray-500">
+                <span className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500" />
+                Extracting skills from {cvName}…
+              </span>
+            )}
+            {cvStatus === "error" && <span className="text-xs text-red-600">{cvError}</span>}
+          </div>
+        </div>
+      )}
 
       {/* Controls — mobile: a Filters button that opens a bottom sheet */}
       <div className="sm:hidden border-b border-gray-200 bg-white">
@@ -527,7 +727,7 @@ export default function Home() {
             </select>
           </label>
 
-          {(company || city || query || days) && (
+          {(company || city || skills.length > 0 || days) && (
             <button onClick={clearAll} className="text-orange-600 hover:underline">
               Clear
             </button>
@@ -573,7 +773,13 @@ export default function Home() {
         {outcome && outcome.total === 0 && (
           <div className="py-10 text-center">
             <p className="text-gray-700">
-              No matches{query ? <> for “{query.trim()}”</> : null}.
+              No matches
+              {skills.length === 1 ? (
+                <> for “{skills[0]}”</>
+              ) : skills.length > 1 ? (
+                <> for your {skills.length} skills</>
+              ) : null}
+              .
             </p>
             <p className="mt-1 text-sm text-gray-500">
               {activeFilters > 0
