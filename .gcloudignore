@@ -14,5 +14,3 @@ public/jobs.json*
 public/descriptions.json*
 public/search-index.bin*
 public/search-meta.json
-# Legacy JS index — no longer built or used by anything.
-public/search-index.json*
