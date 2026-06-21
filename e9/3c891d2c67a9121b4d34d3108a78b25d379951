@@ -1,0 +1,32 @@
+lib/search.worker.ts
+  s_a4b931eacaab1f::t_89ce30838d6ec5 248
+  s_a4b931eacaab1f::t_850af7ffb18fb4 447-451,453,455-458
+  s_a4b931eacaab1f::t_33e93fe9c35e08 246-247
+  s_a4b931eacaab1f::t_f97de6fed4597a 347-368,376
+  s_a4b931eacaab1f::t_d6fc2575f149a3 465-466
+  s_a4b931eacaab1f::t_65b70e05161507 511
+  s_a4b931eacaab1f::t_1d37a61402e040 369-375
+app/page.tsx
+  s_a4b931eacaab1f::t_dd4f1e3eeb8bf8 400-409,411
+  s_a4b931eacaab1f::t_9814fb2dc84f2c 828
+lib/benchEngine.ts
+  s_a4b931eacaab1f::t_627c48eb3ab07a 272
+lib/types.ts
+  s_a4b931eacaab1f::t_5665b503e7dfed 41-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "e93c891d2c67a9121b4d34d3108a78b25d379951",
+  "prompts": {},
+  "sessions": {
+    "s_a4b931eacaab1f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c2844653-87d5-4846-843a-46fac9d10a2d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
