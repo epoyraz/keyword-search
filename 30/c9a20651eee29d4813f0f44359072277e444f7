@@ -1,0 +1,23 @@
+scripts/cv-tail-audit.mjs
+  s_a4b931eacaab1f::t_53206e26e33444 5-23,25-27,45-46,56-59,64-67,69,95,97-98,101,106,108-109
+  s_a4b931eacaab1f::t_0050fc6deb92bb 70,80,82-85,88-94,96,99-100,102-105,107
+  s_a4b931eacaab1f::t_6b036a2deec26e 71-79,81,86-87
+  s_a4b931eacaab1f::t_51285d212c2115 60-63
+  s_a4b931eacaab1f::t_95af85d54f8ed9 1-4,24,28-44,47-55,68,110-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "30c9a20651eee29d4813f0f44359072277e444f7",
+  "prompts": {},
+  "sessions": {
+    "s_a4b931eacaab1f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c2844653-87d5-4846-843a-46fac9d10a2d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
