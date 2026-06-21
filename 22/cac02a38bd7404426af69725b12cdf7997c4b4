@@ -1,0 +1,26 @@
+.gitignore
+  s_a4b931eacaab1f::t_cc65f3f5f0ff9d 27-29
+scripts/cv-search-sim.mjs
+  s_a4b931eacaab1f::t_c4d3afd88c420b 56,61
+  s_a4b931eacaab1f::t_f3f8152ce83f3f 81-83,88-93,95-98,103-104,107-108,110-114,116
+  s_a4b931eacaab1f::t_c6ce80851829d0 1-46,57-58,62-77
+  s_a4b931eacaab1f::t_f990ff190ff1a5 78-80,101,105-106,109
+  s_a4b931eacaab1f::t_d83828ac6f7032 84-87,94,99-100,102,115,117
+  s_a4b931eacaab1f::t_a673f0b7f6b174 47-55,59-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "22cac02a38bd7404426af69725b12cdf7997c4b4",
+  "prompts": {},
+  "sessions": {
+    "s_a4b931eacaab1f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c2844653-87d5-4846-843a-46fac9d10a2d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
