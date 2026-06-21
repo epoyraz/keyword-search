@@ -148,6 +148,7 @@ interface Clause {
   fields?: Array<keyof Job>;
   value: string;
   phrase: boolean;
+  prefix: boolean;
 }
 
 function scanTokens(input: string): string[] {
@@ -202,9 +203,14 @@ function parseAdvanced(input: string): { clauses: Clause[]; orMode: boolean } {
     }
 
     const phrase = tok.startsWith('"') && tok.endsWith('"');
-    const value = (phrase ? tok.slice(1, -1) : tok).trim();
+    let value = (phrase ? tok.slice(1, -1) : tok).trim();
+    // A trailing "*" on a bare term marks it as a prefix (the live, in-progress
+    // typed term) so search-as-you-type stays responsive; every other term is an
+    // exact whole-token match.
+    const prefix = !phrase && value.length > 1 && value.endsWith("*");
+    if (prefix) value = value.slice(0, -1);
     if (!value) continue;
-    clauses.push({ neg, fields, value, phrase });
+    clauses.push({ neg, fields, value, phrase, prefix });
   }
   return { clauses, orMode };
 }
@@ -252,9 +258,15 @@ async function search(
     const negatives = clauses.filter((c) => c.neg);
     const freeText = positives.filter((c) => !c.fields);
     const fieldPos = positives.filter((c) => c.fields);
-    // Multiword skills arrive quoted (buildSkillQuery), so they parse as phrase
-    // clauses; single-word skills are bare term clauses.
-    const termClauses = freeText.filter((c) => !c.phrase);
+    // Multiword skills arrive quoted (buildSkillQuery) → phrase clauses. Bare
+    // single-word skills are term clauses; a trailing "*" (the live, in-progress
+    // typed term) makes a term clause a `prefix` one. Committed skills match as
+    // EXACT whole tokens — in this multilingual corpus "java" must not pull in
+    // "javascript", "agile" the German "agilen", nor a fuzzy "react"→"reach" — so
+    // a skill only matches a job that literally contains its token. The live
+    // prefix term keeps prefix matching so typing stays responsive.
+    const termClauses = freeText.filter((c) => !c.phrase && !c.prefix);
+    const liveClauses = freeText.filter((c) => !c.phrase && c.prefix);
     const phraseClauses = freeText.filter((c) => c.phrase);
 
     const termTokenSets = termClauses.map((c) => ({
@@ -263,17 +275,22 @@ async function search(
         .map((t) => processTerm(t))
         .filter((t): t is string => Boolean(t)),
     }));
+    const liveTokens = liveClauses.flatMap((c) =>
+      tokenize(c.value)
+        .map((t) => processTerm(t))
+        .filter((t): t is string => Boolean(t)),
+    );
 
-    // Short 1–2-letter tokens (C, R, Go) are split off from the wasm query.
-    // `prefix:true` is baked into searchJoined, so leaving "C" in the query makes
-    // it match every token starting with "c" (~14k jobs) — both wrong and, since
-    // that prefix traversal dominates search time, slow. Normal tokens go to the
-    // engine (full prefix+fuzzy preserved); each short token is resolved to its
-    // exact whole-token doc set via the per-call options path. Net effect: correct
-    // *and* faster (no flood to compute then discard).
-    const freeToks = termTokenSets.flatMap((c) => c.toks);
-    const shortQ = [...new Set(freeToks.filter(isShortAlphaTerm))];
-    const normalQ = freeToks.filter((t) => !isShortAlphaTerm(t));
+    // searchJoined returns, per job, the matched index terms (`ts`). Committed
+    // skills are confirmed by EXACT membership in `ts`, the live term by PREFIX —
+    // both read off this one columnar result, so the engine query carries the
+    // committed normal tokens plus the live (prefix) tokens. Short 1–2 letter
+    // committed tokens are resolved exactly via the per-call path instead, since
+    // `prefix:true` (baked into searchJoined) would make "C" flood ~14k jobs.
+    const committedToks = termTokenSets.flatMap((c) => c.toks);
+    const shortQ = [...new Set(committedToks.filter(isShortAlphaTerm))];
+    const committedNormal = committedToks.filter((t) => !isShortAlphaTerm(t));
+    const normalQ = [...committedNormal, ...liveTokens];
 
     // Free-text (normal, non-phrase) matching runs in wasm; collect it into a
     // per-id map so it can be combined with field-scoped clauses under AND or OR.
@@ -374,7 +391,6 @@ async function search(
     hits = [];
     for (const job of candidateJobs) {
       const wh = wasmHits.get(job.id);
-      const inWasm = wh !== undefined; // matched ≥1 term token (OR) / all (AND)
       const ts = new Set(wh ? wh.terms : []);
 
       // A phrase matches when the job has all its tokens (phraseHits); AND mode
@@ -384,25 +400,42 @@ async function search(
         if (!phraseHits.get(value)?.has(job.id)) return false;
         return orMode || searchableText(job).includes(value.toLowerCase());
       };
+      // A committed term clause matches when every token is present EXACTLY — short
+      // tokens via their exact set, normal tokens as a literal index term in `ts`
+      // (so "java"≠"javascript", and a fuzzy "reach" is not "react").
+      const committedOk = (toks: string[]): boolean =>
+        toks.length > 0 &&
+        toks.every((t) => (isShortAlphaTerm(t) ? shortMatches(job.id, t) : ts.has(t)));
+      // The live (in-progress) term matches by PREFIX: a matched index term starts
+      // with it — so typing stays responsive without flooding via fuzzy.
+      const liveOk =
+        liveTokens.length > 0 &&
+        liveTokens.every((t) => {
+          for (const x of ts) if (x.startsWith(t)) return true;
+          return false;
+        });
 
       let freeQualifies: boolean;
       if (orMode) {
-        // A longer skill matching (normal term via the engine, or a phrase) is
-        // what includes a job. A lone 1–2 letter skill is too ambiguous to do so
-        // by itself — "R"/"C" mostly hit a German gender suffix or French "c'est",
-        // not the language — so it only broadens when there's no longer skill to
-        // corroborate with (an all-short query still returns results).
+        // What includes a job: a committed skill that exact-matches (a normal
+        // token, or a phrase), or the live prefix term. A lone 1–2 letter skill is
+        // too ambiguous to include a job by itself ("R"/"C" mostly hit a German
+        // gender suffix or French "c'est"), so it only broadens when nothing
+        // longer can corroborate (an all-short query still returns results).
+        const anyCommitted = termTokenSets.some(
+          ({ toks }) => toks.some((t) => !isShortAlphaTerm(t)) && committedOk(toks),
+        );
         const corroborated =
-          inWasm || phraseClauses.some((c) => phraseOk(c.value));
+          anyCommitted || phraseClauses.some((c) => phraseOk(c.value)) || liveOk;
         freeQualifies =
           corroborated ||
           (!hasLong && shortQ.some((t) => shortMatches(job.id, t)));
       } else {
-        // AND: every clause must match — all normal tokens (inWasm), every short
-        // token exactly, and every phrase.
+        // AND: every committed clause (exact), the live prefix term if present,
+        // and every phrase must match.
         const termOk =
-          (normalQ.length === 0 || inWasm) &&
-          shortQ.every((t) => shortMatches(job.id, t));
+          termTokenSets.every(({ toks }) => committedOk(toks)) &&
+          (liveTokens.length === 0 || liveOk);
         freeQualifies = termOk && phraseClauses.every((c) => phraseOk(c.value));
       }
 
@@ -413,15 +446,11 @@ async function search(
       if (!qualifies) continue;
       if (negatives.some((c) => clauseMatches(job, c))) continue;
 
-      // Label a clause when it matched — term tokens via the wasm/exact sets,
-      // phrases as a unit.
+      // Label a committed skill when it exact-matched; phrases as a unit. (The
+      // live term isn't pinned yet, so it earns no chip.)
       const matched: string[] = [];
       for (const { label, toks } of termTokenSets) {
-        if (
-          toks.length &&
-          toks.every((t) => (isShortAlphaTerm(t) ? shortMatches(job.id, t) : ts.has(t)))
-        )
-          matched.push(label);
+        if (committedOk(toks)) matched.push(label);
       }
       for (const c of phraseClauses) {
         if (phraseOk(c.value)) matched.push(c.value);

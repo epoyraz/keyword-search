@@ -51,6 +51,16 @@ function buildSkillQuery(skills: string[]): string {
   return parts.length === 1 ? parts[0] : parts.join(" OR ");
 }
 
+// Debounce a fast-changing value so live search doesn't fire on every keystroke.
+function useDebounced<T>(value: T, ms: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return debounced;
+}
+
 // Tags can come from free-form CV text or typed input; drop quotes (they're our
 // phrase delimiter) and collapse whitespace so a tag stays one clean clause.
 function cleanSkill(raw: string): string {
@@ -371,8 +381,21 @@ export default function Home() {
     };
   }, [searchFocused]);
 
-  // The committed skill tags are the actual search query.
-  const searchQuery = buildSkillQuery(skills);
+  // The committed tags PLUS the in-progress (debounced) text are the search
+  // query, so results update live as you type. Enter just "pins" the text as a
+  // tag — it's already in the query, so the results don't jump when you do.
+  const debouncedQuery = useDebounced(query, 120);
+  const liveTerm = debouncedQuery.trim();
+  // Committed tags match exactly; the in-progress term gets a trailing "*" so the
+  // worker prefix-matches it (search-as-you-type stays responsive). A multiword
+  // fragment stays an exact phrase — rare while typing.
+  const livePart =
+    liveTerm && !skills.some((s) => s.toLowerCase() === liveTerm.toLowerCase())
+      ? /\s/.test(liveTerm)
+        ? liveTerm
+        : `${liveTerm}*`
+      : null;
+  const searchQuery = buildSkillQuery(livePart ? [...skills, livePart] : skills);
 
   // Reset pagination whenever the query or a filter changes.
   const viewKey = `${searchQuery}|${sort}|${company}|${city}|${days}`;

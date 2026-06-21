@@ -44,22 +44,19 @@ async function readPdfText(file) {
 
 // --- worker search replica (lib/search.worker.ts, OR mode, free-text only) -----
 function makeSearcher(mini) {
-  const decode = (r) => { const m = new Map(); if (!r.count) return m; const ids = r.ids.split("\n"); for (let i = 0; i < r.count; i++) m.set(ids[i], r.scores[i]); return m; };
-  // Job-id set for ONE skill, mirroring lib/search.worker.ts (OR mode):
-  //  - multiword skill (a phrase) → jobs containing ALL its tokens exactly;
-  //  - single-word skill → normal token via searchJoined (prefix+fuzzy), or, for
-  //    a 1–2-letter skill, the exact whole-token set.
-  return (skillName) => {
-    if (/\s/.test(skillName)) {
-      return new Set(mini.search(skillName, { prefix: false, fuzzy: false, combineWith: "AND" }).map((r) => r.id));
-    }
-    const toks = tokenize(skillName).map(processTerm).filter(Boolean);
-    const shortQ = [...new Set(toks.filter(isShortAlphaTerm))];
-    const normalQ = toks.filter((t) => !isShortAlphaTerm(t));
-    const out = new Set(normalQ.length ? decode(mini.searchJoined(normalQ.join(" "), true)).keys() : []);
-    for (const t of shortQ) for (const r of mini.search(t, { prefix: false, fuzzy: false, combineWith: "OR" })) out.add(r.id);
-    return out;
-  };
+  // Job-id set for ONE committed skill, mirroring lib/search.worker.ts: a skill
+  // now matches as EXACT whole tokens (multiword = all its tokens, AND). No
+  // prefix/fuzzy — that's reserved for the live in-progress term in the UI.
+  return (skillName) =>
+    new Set(
+      mini
+        .search(skillName, {
+          prefix: false,
+          fuzzy: false,
+          combineWith: /\s/.test(skillName) ? "AND" : "OR",
+        })
+        .map((r) => r.id),
+    );
 }
 
 // --- run ----------------------------------------------------------------------
