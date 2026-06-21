@@ -1,0 +1,19 @@
+docs/skill-matching.md
+  s_a4b931eacaab1f::t_c02c25df38faed 1-430
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "8125cf8218fdcd12544080d67f6550c92cc6be0f",
+  "prompts": {},
+  "sessions": {
+    "s_a4b931eacaab1f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c2844653-87d5-4846-843a-46fac9d10a2d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
