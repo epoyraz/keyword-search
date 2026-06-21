@@ -47,14 +47,13 @@ function makeSearcher(mini) {
   // Job-id set for ONE committed skill, mirroring lib/search.worker.ts: a skill
   // now matches as EXACT whole tokens (multiword = all its tokens, AND). No
   // prefix/fuzzy — that's reserved for the live in-progress term in the UI.
+  // A skill matches a job that contains ALL its tokens exactly (AND), mirroring
+  // the worker's committedOk (toks.every). Single-token skills are unaffected by
+  // combineWith.
   return (skillName) =>
     new Set(
       mini
-        .search(skillName, {
-          prefix: false,
-          fuzzy: false,
-          combineWith: /\s/.test(skillName) ? "AND" : "OR",
-        })
+        .search(skillName, { prefix: false, fuzzy: false, combineWith: "AND" })
         .map((r) => r.id),
     );
 }
@@ -77,17 +76,23 @@ console.log("  " + skills.map((s) => `${s.name}[${s.score}]`).join(", ") + "\n")
 
 // Per-skill id sets under the current worker logic (multiword skills match as a
 // unit; 1–2 letter skills don't broaden when a longer skill is present).
-const isShortSkill = (name) => { const t = tokenize(name).map(processTerm).filter(Boolean); return t.length === 1 && isShortAlphaTerm(t[0]); };
+// A skill broadens the result set iff it has a non-short token (or is multiword);
+// a skill that's all 1–2-letter tokens (C, R, Go, and CI/CD → ci+cd) is
+// refine-only, exactly like the worker.
+const broadens = (name) =>
+  /\s/.test(name) || tokenize(name).map(processTerm).filter(Boolean).some((t) => !isShortAlphaTerm(t));
 const sets = new Map();
 for (const s of skills) sets.set(s.name, searchIds(s.name));
 const union = (ss) => { const u = new Set(); for (const s of ss) for (const id of s) u.add(id); return u; };
 
-const longSkills = skills.filter((s) => !isShortSkill(s.name));
-const shortSkills = skills.filter((s) => isShortSkill(s.name));
+const longSkills = skills.filter((s) => broadens(s.name));
+const shortSkills = skills.filter((s) => !broadens(s.name));
 // Non-broadening: the result set is bounded by the longer skills; lone short
 // skills only refine/rank within it (unless the query is entirely short skills).
 const longUnion = union(longSkills.map((s) => sets.get(s.name)));
-const total = longSkills.length ? longUnion : union(sets.values());
+// Short skills never broaden (refine-only), so the result set is exactly the
+// union of the longer skills.
+const total = longUnion;
 
 console.log(`short (refine-only) skills: ${shortSkills.map((s) => s.name).join(", ") || "(none)"}\n`);
 console.log(`TOTAL results: ${total.size}  (${((total.size / totalJobs) * 100).toFixed(1)}% of corpus)\n`);
@@ -97,7 +102,7 @@ console.log("  " + "skill".padEnd(20) + "alone".padStart(8) + "  %corpus".padSta
 const rows = [...skills].sort((a, b) => sets.get(b.name).size - sets.get(a.name).size);
 for (const s of rows) {
   const n = sets.get(s.name).size;
-  const tag = isShortSkill(s.name) ? "  ← refine-only" : "";
+  const tag = broadens(s.name) ? "" : "  ← refine-only";
   console.log("  " + s.name.padEnd(20) + String(n).padStart(8) + "  " + ((n / totalJobs) * 100).toFixed(1).padStart(7) + "%" + tag);
 }
 

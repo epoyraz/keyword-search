@@ -32,8 +32,10 @@ const phraseClauses = skills.filter((s) => /\s/.test(s)).map((s) => ({ label: s 
 const freeToks = termClauses.flatMap((c) => c.toks);
 const shortQ = [...new Set(freeToks.filter(isShortAlphaTerm))];
 const normalQ = freeToks.filter((t) => !isShortAlphaTerm(t));
-const hasLong = normalQ.length > 0 || phraseClauses.length > 0;
 
+// searchJoined gives per-job matched index terms (`ts`); committed skills are
+// confirmed by EXACT membership in `ts` (so "java"≠"javascript"); short skills
+// never broaden (refine-only).
 const wasmHits = normalQ.length ? decodeJoined(mini.searchJoined(normalQ.join(" "), true)) : new Map();
 const exactIds = new Map(shortQ.map((t) => [t, new Set(mini.search(t, { prefix: false, fuzzy: false, combineWith: "OR" }).map((r) => r.id))]));
 const phraseHits = new Map(phraseClauses.map((c) => [c.label, new Set(mini.search(c.label, { prefix: false, fuzzy: false, combineWith: "AND" }).map((r) => r.id))]));
@@ -41,14 +43,13 @@ const shortMatch = (id, t) => exactIds.get(t)?.has(id) ?? false;
 
 const universe = new Set(wasmHits.keys());
 for (const s of phraseHits.values()) for (const id of s) universe.add(id);
-if (!hasLong) for (const s of exactIds.values()) for (const id of s) universe.add(id);
 
 const rows = [];
 for (const id of universe) {
-  const inWasm = wasmHits.has(id);
   const ts = new Set(wasmHits.get(id) ?? []);
-  const corroborated = inWasm || phraseClauses.some((c) => phraseHits.get(c.label).has(id));
-  const qualifies = corroborated || (!hasLong && shortQ.some((t) => shortMatch(id, t)));
+  const committedOk = (toks) => toks.length && toks.every((t) => (isShortAlphaTerm(t) ? shortMatch(id, t) : ts.has(t)));
+  const anyCommitted = termClauses.some((c) => c.toks.some((t) => !isShortAlphaTerm(t)) && committedOk(c.toks));
+  const qualifies = anyCommitted || phraseClauses.some((c) => phraseHits.get(c.label).has(id));
   if (!qualifies) continue;
   const matched = [];
   for (const c of termClauses) if (c.toks.length && c.toks.every((t) => (isShortAlphaTerm(t) ? shortMatch(id, t) : ts.has(t)))) matched.push(c.label);
