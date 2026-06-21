@@ -7,6 +7,8 @@ import { readPdfText } from "@/lib/readPdfText";
 import { extractSkills } from "@/lib/skillExtraction";
 import type { Hit, IndexStats, SearchOutcome, SortMode } from "@/lib/types";
 import { highlight, snippet } from "@/lib/highlight";
+import { tokenize, processTerm } from "@/lib/searchConfig.mjs";
+import { isShortAlphaTerm } from "@/lib/termMatch.mjs";
 import CityFilter from "./CityFilter";
 
 const PAGE_SIZE = 30;
@@ -59,6 +61,20 @@ function useDebounced<T>(value: T, ms: number): T {
     return () => clearTimeout(t);
   }, [value, ms]);
   return debounced;
+}
+
+// A skill broadens the result set iff it has a non-short token (or is multiword).
+// All-short skills (C, R, Go, CI/CD→ci+cd) are refine-only — they sharpen ranking
+// but don't pull in jobs (mirrors lib/search.worker.ts), so a query of only these
+// returns nothing until a primary skill is added.
+function skillBroadens(name: string): boolean {
+  return (
+    /\s/.test(name) ||
+    tokenize(name)
+      .map(processTerm)
+      .filter(Boolean)
+      .some((t) => !isShortAlphaTerm(t))
+  );
 }
 
 // Tags can come from free-form CV text or typed input; drop quotes (they're our
@@ -396,6 +412,13 @@ export default function Home() {
         : `${liveTerm}*`
       : null;
   const searchQuery = buildSkillQuery(livePart ? [...skills, livePart] : skills);
+
+  // When the only committed skills are refine-only (C/R/Go) and nothing is being
+  // typed, the search returns nothing by design — surface a hint instead of a
+  // bare "no matches" so it doesn't look broken.
+  const refineOnlySkills = skills.filter((s) => !skillBroadens(s));
+  const allRefineOnly =
+    skills.length > 0 && refineOnlySkills.length === skills.length && !livePart;
 
   // Reset pagination whenever the query or a filter changes.
   const viewKey = `${searchQuery}|${sort}|${company}|${city}|${days}`;
@@ -796,18 +819,26 @@ export default function Home() {
         {outcome && outcome.total === 0 && (
           <div className="py-10 text-center">
             <p className="text-gray-700">
-              No matches
-              {skills.length === 1 ? (
-                <> for “{skills[0]}”</>
-              ) : skills.length > 1 ? (
-                <> for your {skills.length} skills</>
-              ) : null}
-              .
+              {allRefineOnly ? (
+                <>Add a primary skill to see matches</>
+              ) : (
+                <>
+                  No matches
+                  {skills.length === 1 ? (
+                    <> for “{skills[0]}”</>
+                  ) : skills.length > 1 ? (
+                    <> for your {skills.length} skills</>
+                  ) : null}
+                  .
+                </>
+              )}
             </p>
             <p className="mt-1 text-sm text-gray-500">
-              {activeFilters > 0
-                ? "Try removing a filter or check your spelling."
-                : "Check your spelling or try a different term."}
+              {allRefineOnly
+                ? `${refineOnlySkills.join(", ")} ${refineOnlySkills.length > 1 ? "only refine" : "only refines"} ranking — add a skill like Python or React to broaden.`
+                : activeFilters > 0
+                  ? "Try removing a filter or check your spelling."
+                  : "Check your spelling or try a different term."}
             </p>
             {activeFilters > 0 && (
               <button

@@ -342,24 +342,18 @@ async function search(
       }
     }
     const hasFree = freeText.length > 0;
-    // Longer skills (≥3-char terms and multiword phrases) are the ones that can
-    // include a job; lone 1–2 letter skills only refine/rank (see qualify below).
-    const hasLong = normalQ.length > 0 || phraseClauses.length > 0;
 
     // Candidate universe. In OR mode a job can qualify via a field clause alone
     // (so it may be outside the free-text hit set) — scan every job. Otherwise,
     // free text (when present) bounds the set to its term-token hits ∪ the phrase
-    // hits. Short-term hits join the candidate set only when there's no longer
-    // skill to corroborate against (otherwise a lone "R"/"C" doesn't broaden).
+    // hits. Lone 1–2 letter skills never broaden (they only refine/rank), so their
+    // exact sets don't join the candidate universe.
     let universe: Job[];
     if (orMode && fieldPos.length > 0) {
       universe = jobs;
     } else if (hasFree) {
       const ids = new Set<string>(wasmHits.keys());
       for (const set of phraseHits.values()) for (const id of set) ids.add(id);
-      if (!hasLong) {
-        for (const set of exactIds.values()) for (const id of set) ids.add(id);
-      }
       universe = [];
       for (const id of ids) {
         const job = byId.get(id);
@@ -418,18 +412,15 @@ async function search(
       let freeQualifies: boolean;
       if (orMode) {
         // What includes a job: a committed skill that exact-matches (a normal
-        // token, or a phrase), or the live prefix term. A lone 1–2 letter skill is
-        // too ambiguous to include a job by itself ("R"/"C" mostly hit a German
-        // gender suffix or French "c'est"), so it only broadens when nothing
-        // longer can corroborate (an all-short query still returns results).
+        // token, or a phrase), or the live prefix term. Lone 1–2 letter skills
+        // ("R"/"C"/"Go" mostly hit a German gender suffix, French "c'est", or
+        // "go-live") never broaden — they only refine ranking/highlighting on a
+        // job that some longer skill already matched.
         const anyCommitted = termTokenSets.some(
           ({ toks }) => toks.some((t) => !isShortAlphaTerm(t)) && committedOk(toks),
         );
-        const corroborated =
-          anyCommitted || phraseClauses.some((c) => phraseOk(c.value)) || liveOk;
         freeQualifies =
-          corroborated ||
-          (!hasLong && shortQ.some((t) => shortMatches(job.id, t)));
+          anyCommitted || phraseClauses.some((c) => phraseOk(c.value)) || liveOk;
       } else {
         // AND: every committed clause (exact), the live prefix term if present,
         // and every phrase must match.
