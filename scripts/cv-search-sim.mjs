@@ -77,13 +77,16 @@ console.log("  " + skills.map((s) => `${s.name}[${s.score}]`).join(", ") + "\n")
 // Per-skill id sets under the current worker logic (multiword skills match as a
 // unit; 1–2 letter skills don't broaden when a longer skill is present).
 // A skill broadens the result set iff it has a non-short token (or is multiword);
-// a skill that's all 1–2-letter tokens (C, R, Go, and CI/CD → ci+cd) is
-// refine-only, exactly like the worker.
-const broadens = (name) =>
-  /\s/.test(name) || tokenize(name).map(processTerm).filter(Boolean).some((t) => !isShortAlphaTerm(t));
+// a skill is refine-only (doesn't broaden) when it's all 1–2-letter tokens
+// (C, R, Go, CI/CD→ci+cd) OR so common it floods (DF > 6% of corpus, e.g. EFZ),
+// exactly like the worker.
 const sets = new Map();
 for (const s of skills) sets.set(s.name, searchIds(s.name));
 const union = (ss) => { const u = new Set(); for (const s of ss) for (const id of s) u.add(id); return u; };
+const maxBroadDf = Math.floor(totalJobs * 0.06);
+const broadens = (name) =>
+  (/\s/.test(name) || tokenize(name).map(processTerm).filter(Boolean).some((t) => !isShortAlphaTerm(t))) &&
+  (sets.get(name)?.size ?? 0) <= maxBroadDf;
 
 const longSkills = skills.filter((s) => broadens(s.name));
 const shortSkills = skills.filter((s) => !broadens(s.name));

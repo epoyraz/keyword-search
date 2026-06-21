@@ -26,7 +26,11 @@ const totalJobs = byId.size;
 // A skill matches jobs containing ALL its tokens exactly (AND); it broadens the
 // result set only if it has a non-short token (else it's refine-only).
 const skillIds = (name) => new Set(mini.search(name, { prefix: false, fuzzy: false, combineWith: "AND" }).map((r) => r.id));
-const broadens = (name) => /\s/.test(name) || tokenize(name).map(processTerm).filter(Boolean).some((t) => !isShortAlphaTerm(t));
+// Refine-only (doesn't broaden) when all-short OR too common (DF > 6%), like the worker.
+const maxBroadDf = Math.floor(totalJobs * 0.06);
+const broadens = (name, size) =>
+  (/\s/.test(name) || tokenize(name).map(processTerm).filter(Boolean).some((t) => !isShortAlphaTerm(t))) &&
+  size <= maxBroadDf;
 
 let prof = "";
 for (const p of personas) {
@@ -35,8 +39,8 @@ for (const p of personas) {
     console.log(`\n══════════ ${prof.toUpperCase()} ══════════`);
   }
   const sets = new Map(p.skills.map((s) => [s, skillIds(s)]));
-  const refineOnly = p.skills.filter((s) => !broadens(s));
-  const broadening = p.skills.filter((s) => broadens(s));
+  const refineOnly = p.skills.filter((s) => !broadens(s, sets.get(s).size));
+  const broadening = p.skills.filter((s) => broadens(s, sets.get(s).size));
   const total = new Set();
   for (const s of broadening) for (const id of sets.get(s)) total.add(id);
   // rank by # of (all) skills matched, like the UI's "matches" sort

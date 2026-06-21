@@ -41,6 +41,14 @@ const exactIds = new Map(shortQ.map((t) => [t, new Set(mini.search(t, { prefix: 
 const phraseHits = new Map(phraseClauses.map((c) => [c.label, new Set(mini.search(c.label, { prefix: false, fuzzy: false, combineWith: "AND" }).map((r) => r.id))]));
 const shortMatch = (id, t) => exactIds.get(t)?.has(id) ?? false;
 
+// Specificity gate (DF > 6% → refine-only), same as the worker; DF read off ts.
+const totalJobs = byId.size;
+const maxBroadDf = Math.floor(totalJobs * 0.06);
+const df = new Map();
+for (const terms of wasmHits.values()) for (const t of new Set(terms)) df.set(t, (df.get(t) ?? 0) + 1);
+const tokenBroadens = (t) => !isShortAlphaTerm(t) && (df.get(t) ?? 0) <= maxBroadDf;
+const phraseBroadens = (label) => (phraseHits.get(label)?.size ?? 0) <= maxBroadDf;
+
 const universe = new Set(wasmHits.keys());
 for (const s of phraseHits.values()) for (const id of s) universe.add(id);
 
@@ -48,8 +56,8 @@ const rows = [];
 for (const id of universe) {
   const ts = new Set(wasmHits.get(id) ?? []);
   const committedOk = (toks) => toks.length && toks.every((t) => (isShortAlphaTerm(t) ? shortMatch(id, t) : ts.has(t)));
-  const anyCommitted = termClauses.some((c) => c.toks.some((t) => !isShortAlphaTerm(t)) && committedOk(c.toks));
-  const qualifies = anyCommitted || phraseClauses.some((c) => phraseHits.get(c.label).has(id));
+  const anyCommitted = termClauses.some((c) => c.toks.some(tokenBroadens) && committedOk(c.toks));
+  const qualifies = anyCommitted || phraseClauses.some((c) => phraseBroadens(c.label) && phraseHits.get(c.label).has(id));
   if (!qualifies) continue;
   const matched = [];
   for (const c of termClauses) if (c.toks.length && c.toks.every((t) => (isShortAlphaTerm(t) ? shortMatch(id, t) : ts.has(t)))) matched.push(c.label);
