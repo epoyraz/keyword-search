@@ -269,7 +269,7 @@ export function createRunner(
       }
     }
 
-    return { hits, total: hits.length, ms: performance.now() - start };
+    return { hits, total: hits.length, ms: performance.now() - start, refineOnly: [] };
   };
 }
 

@@ -38,6 +38,12 @@ export interface SearchOutcome {
   hits: Hit[];
   total: number;
   ms: number;
+  /**
+   * Committed skills that were treated as refine-only (1–2 letter, or so common
+   * they'd flood) — they sharpen ranking but don't broaden. Lets the UI explain
+   * an empty result set instead of showing a bare "no matches".
+   */
+  refineOnly: string[];
 }
 
 export interface SearchArgs {

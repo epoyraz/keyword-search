@@ -243,6 +243,9 @@ async function search(
   const { clauses, orMode } = parseAdvanced(query.trim());
 
   let hits: Hit[];
+  // Committed skills that only refine (1–2 letter, or so common they'd flood) —
+  // surfaced so the UI can explain an empty result set.
+  const refineOnly: string[] = [];
   // Time spent awaiting on-demand description fetches is data-loading, not search
   // work — subtracted from the reported `ms` so it stays comparable to the
   // common (no-fetch) path.
@@ -341,6 +344,36 @@ async function search(
         phraseHits.set(c.value, new Set(res.map((r) => r.id)));
       }
     }
+    // Specificity gate: a skill on a large share of the corpus (the Swiss
+    // credential "EFZ", or "Betreuung"/"Verkauf") floods the OR, so it refines
+    // rather than broadens — the frequency twin of the short-skill rule. Document
+    // frequency per matched index term comes straight off the wasm results (every
+    // job containing a token exactly is already in `wasmHits`), so this is free.
+    const maxBroadDf = Math.floor(jobs.length * 0.06);
+    const df = new Map<string, number>();
+    for (const { terms } of wasmHits.values()) {
+      for (const t of new Set(terms)) df.set(t, (df.get(t) ?? 0) + 1);
+    }
+    // A token broadens iff it's not a 1–2 letter term and not too common; a phrase
+    // broadens iff its exact-match set isn't huge.
+    const tokenBroadens = (t: string): boolean =>
+      !isShortAlphaTerm(t) && (df.get(t) ?? 0) <= maxBroadDf;
+    const phraseBroadens = (value: string): boolean =>
+      (phraseHits.get(value)?.size ?? 0) <= maxBroadDf;
+    for (const { label, toks } of termTokenSets) {
+      if (!toks.some(tokenBroadens)) refineOnly.push(label);
+    }
+    for (const c of phraseClauses) {
+      if (!phraseBroadens(c.value)) refineOnly.push(c.value);
+    }
+    // At least one clause must broaden for any job to be included — so a query of
+    // only refine-only skills (a lone "EFZ", or "C R") returns nothing in either
+    // mode, consistently.
+    const someBroadens =
+      liveTokens.length > 0 ||
+      termTokenSets.some(({ toks }) => toks.some(tokenBroadens)) ||
+      phraseClauses.some((c) => phraseBroadens(c.value));
+
     const hasFree = freeText.length > 0;
 
     // Candidate universe. In OR mode a job can qualify via a field clause alone
@@ -411,23 +444,26 @@ async function search(
 
       let freeQualifies: boolean;
       if (orMode) {
-        // What includes a job: a committed skill that exact-matches (a normal
-        // token, or a phrase), or the live prefix term. Lone 1–2 letter skills
-        // ("R"/"C"/"Go" mostly hit a German gender suffix, French "c'est", or
-        // "go-live") never broaden — they only refine ranking/highlighting on a
-        // job that some longer skill already matched.
+        // What includes a job: a committed skill that exact-matches AND broadens
+        // (a token that isn't 1–2 letters and isn't corpus-flooding), a broadening
+        // phrase, or the live prefix term. Refine-only skills ("R"/"C"/"Go" — a
+        // German gender suffix / French "c'est"; or ultra-common "EFZ"/"Betreuung")
+        // still label below, they just don't include a job on their own.
         const anyCommitted = termTokenSets.some(
-          ({ toks }) => toks.some((t) => !isShortAlphaTerm(t)) && committedOk(toks),
+          ({ toks }) => toks.some(tokenBroadens) && committedOk(toks),
         );
-        freeQualifies =
-          anyCommitted || phraseClauses.some((c) => phraseOk(c.value)) || liveOk;
+        const anyPhrase = phraseClauses.some(
+          (c) => phraseBroadens(c.value) && phraseOk(c.value),
+        );
+        freeQualifies = anyCommitted || anyPhrase || liveOk;
       } else {
         // AND: every committed clause (exact), the live prefix term if present,
         // and every phrase must match.
         const termOk =
           termTokenSets.every(({ toks }) => committedOk(toks)) &&
           (liveTokens.length === 0 || liveOk);
-        freeQualifies = termOk && phraseClauses.every((c) => phraseOk(c.value));
+        freeQualifies =
+          someBroadens && termOk && phraseClauses.every((c) => phraseOk(c.value));
       }
 
       // Combine free-text and field-scoped clauses honoring AND vs OR.
@@ -472,7 +508,7 @@ async function search(
     }
   }
 
-  return { hits, total: hits.length, ms: performance.now() - start - fetchMs };
+  return { hits, total: hits.length, ms: performance.now() - start - fetchMs, refineOnly };
 }
 
 ctx.onmessage = async (e: MessageEvent<WorkerRequest>) => {

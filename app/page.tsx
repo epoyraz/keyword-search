@@ -7,8 +7,6 @@ import { readPdfText } from "@/lib/readPdfText";
 import { extractSkills } from "@/lib/skillExtraction";
 import type { Hit, IndexStats, SearchOutcome, SortMode } from "@/lib/types";
 import { highlight, snippet } from "@/lib/highlight";
-import { tokenize, processTerm } from "@/lib/searchConfig.mjs";
-import { isShortAlphaTerm } from "@/lib/termMatch.mjs";
 import CityFilter from "./CityFilter";
 
 const PAGE_SIZE = 30;
@@ -61,20 +59,6 @@ function useDebounced<T>(value: T, ms: number): T {
     return () => clearTimeout(t);
   }, [value, ms]);
   return debounced;
-}
-
-// A skill broadens the result set iff it has a non-short token (or is multiword).
-// All-short skills (C, R, Go, CI/CD→ci+cd) are refine-only — they sharpen ranking
-// but don't pull in jobs (mirrors lib/search.worker.ts), so a query of only these
-// returns nothing until a primary skill is added.
-function skillBroadens(name: string): boolean {
-  return (
-    /\s/.test(name) ||
-    tokenize(name)
-      .map(processTerm)
-      .filter(Boolean)
-      .some((t) => !isShortAlphaTerm(t))
-  );
 }
 
 // Tags can come from free-form CV text or typed input; drop quotes (they're our
@@ -413,12 +397,18 @@ export default function Home() {
       : null;
   const searchQuery = buildSkillQuery(livePart ? [...skills, livePart] : skills);
 
-  // When the only committed skills are refine-only (C/R/Go) and nothing is being
-  // typed, the search returns nothing by design — surface a hint instead of a
-  // bare "no matches" so it doesn't look broken.
-  const refineOnlySkills = skills.filter((s) => !skillBroadens(s));
+  // When the only committed skills are refine-only (1–2 letter, or corpus-flooding
+  // like EFZ/Betreuung) and nothing is being typed, the search returns nothing by
+  // design — surface a hint instead of a bare "no matches". The worker reports
+  // which skills it treated as refine-only.
+  const refineOnlyNames = new Set(
+    (outcome?.refineOnly ?? []).map((s) => s.toLowerCase()),
+  );
+  const refineOnlySkills = skills.filter((s) =>
+    refineOnlyNames.has(s.toLowerCase()),
+  );
   const allRefineOnly =
-    skills.length > 0 && refineOnlySkills.length === skills.length && !livePart;
+    skills.length > 0 && !livePart && refineOnlySkills.length === skills.length;
 
   // Reset pagination whenever the query or a filter changes.
   const viewKey = `${searchQuery}|${sort}|${company}|${city}|${days}`;
@@ -835,7 +825,7 @@ export default function Home() {
             </p>
             <p className="mt-1 text-sm text-gray-500">
               {allRefineOnly
-                ? `${refineOnlySkills.join(", ")} ${refineOnlySkills.length > 1 ? "only refine" : "only refines"} ranking — add a skill like Python or React to broaden.`
+                ? `${refineOnlySkills.join(", ")} ${refineOnlySkills.length > 1 ? "only refine" : "only refines"} ranking — add a more specific skill to see matches.`
                 : activeFilters > 0
                   ? "Try removing a filter or check your spelling."
                   : "Check your spelling or try a different term."}
