@@ -10,6 +10,7 @@
     "bench:search": "node --expose-gc scripts/bench-search-engines.mjs",
     "bench:wasm": "node --expose-gc scripts/bench-minisearch-vs-wasm.mjs",
     "bench:joined": "node --expose-gc scripts/bench-searchjoined.mjs",
+    "test:match": "node scripts/test-term-matching.mjs",
     "lint": "eslint"
   },
   "dependencies": {

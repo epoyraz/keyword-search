@@ -7,6 +7,7 @@
 
 import init, { MiniSearchWasm } from "minisearch-wasm";
 import { tokenize, processTerm } from "./searchConfig.mjs";
+import { isShortAlphaTerm } from "./termMatch.mjs";
 import { fetchDescriptions } from "./descriptions";
 import type {
   Job,
@@ -251,25 +252,36 @@ async function search(
     const negatives = clauses.filter((c) => c.neg);
     const freeText = positives.filter((c) => !c.fields);
     const fieldPos = positives.filter((c) => c.fields);
-    const freeTextPhrases = freeText
-      .filter((c) => c.phrase)
-      .map((c) => c.value.toLowerCase());
+    // Multiword skills arrive quoted (buildSkillQuery), so they parse as phrase
+    // clauses; single-word skills are bare term clauses.
+    const termClauses = freeText.filter((c) => !c.phrase);
+    const phraseClauses = freeText.filter((c) => c.phrase);
 
-    const clauseTokenSets = freeText.map((c) => ({
+    const termTokenSets = termClauses.map((c) => ({
       label: c.value,
       toks: tokenize(c.value)
         .map((t) => processTerm(t))
         .filter((t): t is string => Boolean(t)),
     }));
 
-    // Free-text matching runs in wasm; collect it into a per-id map so it can be
-    // combined with field-scoped clauses under either AND or OR.
+    // Short 1–2-letter tokens (C, R, Go) are split off from the wasm query.
+    // `prefix:true` is baked into searchJoined, so leaving "C" in the query makes
+    // it match every token starting with "c" (~14k jobs) — both wrong and, since
+    // that prefix traversal dominates search time, slow. Normal tokens go to the
+    // engine (full prefix+fuzzy preserved); each short token is resolved to its
+    // exact whole-token doc set via the per-call options path. Net effect: correct
+    // *and* faster (no flood to compute then discard).
+    const freeToks = termTokenSets.flatMap((c) => c.toks);
+    const shortQ = [...new Set(freeToks.filter(isShortAlphaTerm))];
+    const normalQ = freeToks.filter((t) => !isShortAlphaTerm(t));
+
+    // Free-text (normal, non-phrase) matching runs in wasm; collect it into a
+    // per-id map so it can be combined with field-scoped clauses under AND or OR.
     const wasmHits = new Map<string, { score: number; terms: string[] }>();
-    if (freeText.length && mini) {
-      const msQuery = freeText.map((c) => c.value).join(" ");
+    if (normalQ.length && mini) {
       // Everything (tokenize, prefix/fuzzy, BM25, ranking) runs in wasm; the
       // result set comes back columnar and is decoded here.
-      const r = mini.searchJoined(msQuery, orMode) as JoinedResults;
+      const r = mini.searchJoined(normalQ.join(" "), orMode) as JoinedResults;
       if (r.count) {
         const ids = r.ids.split("\n");
         const termRows = r.terms.split("\n");
@@ -282,15 +294,57 @@ async function search(
       }
     }
 
+    // Exact, whole-token doc sets for the short tokens.
+    const exactIds = new Map<string, Set<string>>();
+    if (shortQ.length && mini) {
+      for (const t of shortQ) {
+        const res = mini.search(t, {
+          prefix: false,
+          fuzzy: false,
+          combineWith: "OR",
+        }) as Array<{ id: string }>;
+        exactIds.set(t, new Set(res.map((r) => r.id)));
+      }
+    }
+    const shortMatches = (jobId: string, t: string): boolean =>
+      exactIds.get(t)?.has(jobId) ?? false;
+
+    // Multiword skills must match as a unit. Their tokens are kept OUT of the wasm
+    // query above (so "REST APIs" can't prefix-flood via "rest"→"Restaurant");
+    // instead each phrase resolves to the jobs that contain ALL its tokens exactly.
+    // (AND mode additionally confirms adjacency in the loop below.)
+    const phraseHits = new Map<string, Set<string>>();
+    if (phraseClauses.length && mini) {
+      for (const c of phraseClauses) {
+        const res = mini.search(c.value, {
+          prefix: false,
+          fuzzy: false,
+          combineWith: "AND",
+        }) as Array<{ id: string }>;
+        phraseHits.set(c.value, new Set(res.map((r) => r.id)));
+      }
+    }
+    const hasFree = freeText.length > 0;
+    // Longer skills (≥3-char terms and multiword phrases) are the ones that can
+    // include a job; lone 1–2 letter skills only refine/rank (see qualify below).
+    const hasLong = normalQ.length > 0 || phraseClauses.length > 0;
+
     // Candidate universe. In OR mode a job can qualify via a field clause alone
     // (so it may be outside the free-text hit set) — scan every job. Otherwise,
-    // free text (when present) bounds the set to its wasm hits.
+    // free text (when present) bounds the set to its term-token hits ∪ the phrase
+    // hits. Short-term hits join the candidate set only when there's no longer
+    // skill to corroborate against (otherwise a lone "R"/"C" doesn't broaden).
     let universe: Job[];
     if (orMode && fieldPos.length > 0) {
       universe = jobs;
-    } else if (freeText.length) {
+    } else if (hasFree) {
+      const ids = new Set<string>(wasmHits.keys());
+      for (const set of phraseHits.values()) for (const id of set) ids.add(id);
+      if (!hasLong) {
+        for (const set of exactIds.values()) for (const id of set) ids.add(id);
+      }
       universe = [];
-      for (const id of wasmHits.keys()) {
+      for (const id of ids) {
         const job = byId.get(id);
         if (job) universe.push(job);
       }
@@ -305,9 +359,10 @@ async function search(
     // Filters are cheap and need no description, so apply them first to bound
     // the candidate set. Only then (and only if an operator scans raw text) do
     // we fetch descriptions — for exactly the candidates, batched and cached.
+    // OR-mode phrases need no adjacency check, so they stay on the no-fetch path.
     const candidateJobs = universe.filter((j) => passesFilters(j, filters));
     const needsDesc =
-      (!orMode && freeTextPhrases.length > 0) ||
+      (!orMode && phraseClauses.length > 0) ||
       negatives.some(clauseUsesDescription) ||
       fieldPos.some(clauseUsesDescription);
     if (needsDesc) {
@@ -319,29 +374,57 @@ async function search(
     hits = [];
     for (const job of candidateJobs) {
       const wh = wasmHits.get(job.id);
-      const inWasm = wh !== undefined;
+      const inWasm = wh !== undefined; // matched ≥1 term token (OR) / all (AND)
+      const ts = new Set(wh ? wh.terms : []);
 
-      // Phrase adjacency for free text is only enforced in AND mode (wasm
-      // matches phrase tokens but not their adjacency).
-      if (!orMode && freeTextPhrases.length) {
-        const text = searchableText(job);
-        if (!freeTextPhrases.every((p) => text.includes(p))) continue;
+      // A phrase matches when the job has all its tokens (phraseHits); AND mode
+      // additionally requires them adjacent (substring), preserving quoted-phrase
+      // semantics for advanced queries.
+      const phraseOk = (value: string): boolean => {
+        if (!phraseHits.get(value)?.has(job.id)) return false;
+        return orMode || searchableText(job).includes(value.toLowerCase());
+      };
+
+      let freeQualifies: boolean;
+      if (orMode) {
+        // A longer skill matching (normal term via the engine, or a phrase) is
+        // what includes a job. A lone 1–2 letter skill is too ambiguous to do so
+        // by itself — "R"/"C" mostly hit a German gender suffix or French "c'est",
+        // not the language — so it only broadens when there's no longer skill to
+        // corroborate with (an all-short query still returns results).
+        const corroborated =
+          inWasm || phraseClauses.some((c) => phraseOk(c.value));
+        freeQualifies =
+          corroborated ||
+          (!hasLong && shortQ.some((t) => shortMatches(job.id, t)));
+      } else {
+        // AND: every clause must match — all normal tokens (inWasm), every short
+        // token exactly, and every phrase.
+        const termOk =
+          (normalQ.length === 0 || inWasm) &&
+          shortQ.every((t) => shortMatches(job.id, t));
+        freeQualifies = termOk && phraseClauses.every((c) => phraseOk(c.value));
       }
 
       // Combine free-text and field-scoped clauses honoring AND vs OR.
       const qualifies = orMode
-        ? (freeText.length > 0 && inWasm) ||
-          fieldPos.some((c) => clauseMatches(job, c))
-        : (freeText.length === 0 || inWasm) &&
-          fieldPos.every((c) => clauseMatches(job, c));
+        ? (hasFree && freeQualifies) || fieldPos.some((c) => clauseMatches(job, c))
+        : (!hasFree || freeQualifies) && fieldPos.every((c) => clauseMatches(job, c));
       if (!qualifies) continue;
       if (negatives.some((c) => clauseMatches(job, c))) continue;
 
-      const terms = wh ? wh.terms : [];
-      const ts = new Set(terms);
+      // Label a clause when it matched — term tokens via the wasm/exact sets,
+      // phrases as a unit.
       const matched: string[] = [];
-      for (const { label, toks } of clauseTokenSets) {
-        if (toks.length && toks.every((t) => ts.has(t))) matched.push(label);
+      for (const { label, toks } of termTokenSets) {
+        if (
+          toks.length &&
+          toks.every((t) => (isShortAlphaTerm(t) ? shortMatches(job.id, t) : ts.has(t)))
+        )
+          matched.push(label);
+      }
+      for (const c of phraseClauses) {
+        if (phraseOk(c.value)) matched.push(c.value);
       }
       // Only tag a field clause that actually matched (matters in OR mode).
       for (const c of fieldPos) {
