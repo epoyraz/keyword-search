@@ -1,0 +1,28 @@
+scripts/personas-test.mjs
+  s_a4b931eacaab1f::t_8504e3d894f7a3 1-56
+scripts/cv-search-sim.mjs
+  s_a4b931eacaab1f::t_4ce846168938bd 93-95
+  s_a4b931eacaab1f::t_96f97eecf9c28f 50-52,56
+  s_a4b931eacaab1f::t_399d607abef319 79-83,88-89
+  s_a4b931eacaab1f::t_85a1649bc0cce9 105
+scripts/personas.mjs
+  s_a4b931eacaab1f::t_439f93040c309b 1-148
+scripts/cv-tail-audit.mjs
+  s_a4b931eacaab1f::t_46724311d4b417 36-38,50-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "9b753a81e163545dd58892816a4f26b8d3a57766",
+  "prompts": {},
+  "sessions": {
+    "s_a4b931eacaab1f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c2844653-87d5-4846-843a-46fac9d10a2d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
