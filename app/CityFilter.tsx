@@ -75,8 +75,8 @@ export default function CityFilter({
     <button
       type="button"
       onClick={() => choose(city)}
-      className={`block w-full truncate px-3 text-left hover:bg-orange-50 ${itemPad} ${
-        city === value ? "bg-orange-100 font-medium text-orange-800" : "text-gray-700"
+      className={`block w-full truncate px-3 text-left hover:bg-accent-soft/50 ${itemPad} ${
+        city === value ? "bg-accent-soft font-medium text-accent" : "text-ink"
       }`}
     >
       {city}
@@ -88,44 +88,44 @@ export default function CityFilter({
       className={fullWidth ? "relative" : "relative flex items-center gap-1"}
       ref={rootRef}
     >
-      {!fullWidth && <span className="text-gray-500">City</span>}
+      {!fullWidth && <span className="text-muted">City</span>}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         className={
           fullWidth
-            ? "flex h-12 w-full items-center justify-between gap-1 rounded-xl border border-gray-300 bg-white px-3 text-base text-gray-900"
-            : "flex items-center gap-1 rounded border border-gray-300 bg-white px-1.5 py-1 max-w-[14rem]"
+            ? "flex h-12 w-full items-center justify-between gap-1 rounded-xl border border-warm bg-panel px-3 text-base text-ink"
+            : "flex items-center gap-1 rounded border border-warm bg-white px-1.5 py-1 max-w-[14rem]"
         }
       >
         <span className="truncate">{value || "All cities"}</span>
-        <span className="text-gray-400">▾</span>
+        <span className="text-muted">▾</span>
       </button>
 
       {open && (
         <div
           className={
             fullWidth
-              ? "mt-2 w-full rounded-xl border border-gray-200 bg-white"
-              : "absolute left-0 top-full z-20 mt-1 w-64 rounded-md border border-gray-300 bg-white shadow-lg"
+              ? "mt-2 w-full rounded-xl border border-warm bg-panel"
+              : "absolute left-0 top-full z-20 mt-1 w-64 rounded-md border border-warm bg-panel shadow-lg"
           }
         >
-          <div className="border-b border-gray-100 p-2">
+          <div className="border-b border-warm/60 p-2">
             <input
               ref={inputRef}
               type="search"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Filter cities…"
-              className="w-full rounded border border-gray-300 px-2 py-1.5 text-base sm:text-sm outline-none focus:ring-2 focus:ring-orange-300"
+              className="w-full rounded border border-warm px-2 py-1.5 text-base sm:text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
             />
           </div>
           <div className={`overflow-y-auto py-1 ${fullWidth ? "max-h-60" : "max-h-72"}`}>
             <button
               type="button"
               onClick={() => choose("")}
-              className={`block w-full px-3 text-left hover:bg-orange-50 ${itemPad} ${
-                value === "" ? "bg-orange-100 font-medium text-orange-800" : "text-gray-700"
+              className={`block w-full px-3 text-left hover:bg-accent-soft/50 ${itemPad} ${
+                value === "" ? "bg-accent-soft font-medium text-accent" : "text-ink"
               }`}
             >
               All cities
@@ -137,7 +137,7 @@ export default function CityFilter({
                   <Item key={c} city={c} />
                 ))}
                 {grouped.top.length > 0 && grouped.rest.length > 0 && (
-                  <div className="my-1 border-t border-gray-200" />
+                  <div className="my-1 border-t border-warm/60" />
                 )}
                 {grouped.rest.map((c) => (
                   <Item key={c} city={c} />
@@ -146,7 +146,7 @@ export default function CityFilter({
             ) : matches.length ? (
               matches.map((c) => <Item key={c} city={c} />)
             ) : (
-              <p className="px-3 py-2 text-gray-400">No matching city.</p>
+              <p className="px-3 py-2 text-muted">No matching city.</p>
             )}
           </div>
         </div>

@@ -124,13 +124,13 @@ function postedLabel(days: number): string {
 
 function FilterChip({ label, onClear }: { label: string; onClear: () => void }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 py-1 pl-3 pr-1.5 text-sm font-medium text-orange-800">
+    <span className="inline-flex items-center gap-1 rounded-full bg-accent-soft py-1 pl-3 pr-1.5 text-sm font-medium text-accent">
       <span className="max-w-[12rem] truncate">{label}</span>
       <button
         type="button"
         onClick={onClear}
         aria-label={`Remove ${label}`}
-        className="flex h-5 w-5 items-center justify-center rounded-full text-orange-700 hover:bg-orange-200"
+        className="flex h-5 w-5 items-center justify-center rounded-full text-accent hover:bg-accent-light/25"
       >
         ✕
       </button>
@@ -144,12 +144,12 @@ function SkeletonList() {
       {Array.from({ length: 7 }).map((_, i) => (
         <li
           key={i}
-          className="animate-pulse rounded-xl border border-gray-200 bg-white p-4 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0"
+          className="animate-pulse rounded-xl border border-warm bg-panel p-4 shadow-sm sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none"
         >
-          <div className="h-4 w-3/5 rounded bg-gray-200" />
-          <div className="mt-2 h-3 w-2/5 rounded bg-gray-100" />
-          <div className="mt-3 h-3 w-full rounded bg-gray-100" />
-          <div className="mt-1.5 h-3 w-11/12 rounded bg-gray-100" />
+          <div className="h-4 w-3/5 rounded bg-warm/60" />
+          <div className="mt-2 h-3 w-2/5 rounded bg-warm/40" />
+          <div className="mt-3 h-3 w-full rounded bg-warm/40" />
+          <div className="mt-1.5 h-3 w-11/12 rounded bg-warm/40" />
         </li>
       ))}
     </ol>
@@ -477,10 +477,27 @@ export default function Home() {
   return (
     <div className="flex flex-col min-h-full">
       {/* Header */}
-      <header className="sticky top-0 z-20 bg-[#ff6600] text-white shadow [padding-top:env(safe-area-inset-top)]">
+      <header className="sticky top-0 z-20 bg-gradient-to-br from-accent to-accent-dark text-white shadow-md [padding-top:env(safe-area-inset-top)]">
         <div className="mx-auto max-w-4xl px-3 sm:px-4 py-2.5 sm:py-3 flex items-center gap-2 sm:gap-3">
-          <span className="hidden sm:inline font-mono font-bold text-lg whitespace-nowrap">
-            keyword-search
+          <span className="hidden sm:flex items-center gap-2 whitespace-nowrap">
+            <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-white/15 ring-1 ring-white/25">
+              <svg
+                aria-hidden
+                viewBox="0 0 24 24"
+                className="h-[18px] w-[18px]"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+              </svg>
+            </span>
+            <span className="font-serif text-xl font-bold tracking-tight">
+              keyword-search
+            </span>
           </span>
           <div
             className={`relative flex-1 rounded-xl sm:rounded-md ${
@@ -522,7 +539,7 @@ export default function Home() {
                     : "Add a skill, or drop your CV (PDF)…"
               }
               disabled={!ready}
-              className="w-full rounded-xl sm:rounded-md border-0 bg-white pl-9 pr-16 py-2.5 sm:py-2 text-base text-black placeholder-gray-500 outline-none focus:ring-2 focus:ring-orange-300 [&::-webkit-search-cancel-button]:hidden"
+              className="w-full rounded-xl sm:rounded-md border-0 bg-white pl-9 pr-16 py-2.5 sm:py-2 text-base text-ink placeholder-gray-500 outline-none focus:ring-2 focus:ring-white/70 [&::-webkit-search-cancel-button]:hidden"
             />
             <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-0.5">
               {query && (
@@ -543,7 +560,7 @@ export default function Home() {
                 aria-label="Upload a PDF CV to add its skills"
                 title="Upload a PDF CV to add its skills"
                 onClick={() => fileInputRef.current?.click()}
-                className="flex h-6 w-6 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-orange-600"
+                className="flex h-6 w-6 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-accent"
               >
                 <svg
                   aria-hidden
@@ -560,16 +577,16 @@ export default function Home() {
               </button>
             </div>
             {dropActive && (
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl sm:rounded-md bg-[#ff6600]/95 text-sm font-semibold text-white">
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl sm:rounded-md bg-accent/95 text-sm font-semibold text-white">
                 Drop your CV to add skills
               </div>
             )}
 
             {showSuggest && (
-              <div className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-xl bg-white text-black shadow-lg ring-1 ring-black/5">
+              <div className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-xl border border-warm bg-panel text-ink shadow-lg">
                 {recents.length > 0 && (
-                  <div className="border-b border-gray-100 py-1">
-                    <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                  <div className="border-b border-warm/60 py-1">
+                    <div className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-muted">
                       Recent
                     </div>
                     {recents.map((r) => (
@@ -580,7 +597,7 @@ export default function Home() {
                           e.preventDefault();
                           pickSearch(r);
                         }}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-orange-50"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-accent-soft/50"
                       >
                         <span className="text-gray-400">↩</span>
                         <span className="truncate">{r}</span>
@@ -588,7 +605,7 @@ export default function Home() {
                     ))}
                   </div>
                 )}
-                <div className="px-3 py-1 pt-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                <div className="px-3 py-1 pt-2 text-xs font-semibold uppercase tracking-wide text-muted">
                   Popular
                 </div>
                 <div className="flex flex-wrap gap-2 p-3 pt-1.5">
@@ -600,7 +617,7 @@ export default function Home() {
                         e.preventDefault();
                         pickSearch(p);
                       }}
-                      className="rounded-full bg-gray-100 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-200"
+                      className="rounded-full border border-warm bg-bg px-3 py-1.5 text-sm text-ink hover:border-accent hover:bg-accent-soft hover:text-accent"
                     >
                       {p}
                     </button>
@@ -614,7 +631,7 @@ export default function Home() {
             type="button"
             onClick={() => addSkill(query)}
             disabled={!ready || !query.trim()}
-            className="shrink-0 rounded-xl sm:rounded-md bg-white px-3 py-2.5 text-sm font-semibold text-orange-700 shadow-sm hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-50 sm:py-2"
+            className="shrink-0 rounded-xl sm:rounded-md bg-white px-3 py-2.5 text-sm font-semibold text-accent shadow-sm hover:bg-accent-soft disabled:cursor-not-allowed disabled:opacity-50 sm:py-2"
           >
             Add skill
           </button>
@@ -634,19 +651,19 @@ export default function Home() {
 
       {/* Skill tags — the committed query. Press Enter / Add skill, or drop a CV. */}
       {(skills.length > 0 || cvStatus !== "idle") && (
-        <div className="border-b border-gray-200 bg-white">
+        <div className="border-b border-warm bg-panel">
           <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-2 px-3 py-2 sm:px-4">
             {skills.map((s) => (
               <span
                 key={s}
-                className="inline-flex items-center gap-1 rounded-full bg-orange-100 py-1 pl-3 pr-1.5 text-sm font-medium text-orange-800"
+                className="inline-flex items-center gap-1 rounded-full bg-accent-soft py-1 pl-3 pr-1.5 text-sm font-medium text-accent"
               >
                 <span className="max-w-[12rem] truncate">{s}</span>
                 <button
                   type="button"
                   onClick={() => removeSkill(s)}
                   aria-label={`Remove ${s}`}
-                  className="flex h-5 w-5 items-center justify-center rounded-full text-orange-700 hover:bg-orange-200"
+                  className="flex h-5 w-5 items-center justify-center rounded-full text-accent hover:bg-accent-light/25"
                 >
                   ✕
                 </button>
@@ -656,14 +673,14 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => setSkills([])}
-                className="ml-1 text-xs font-medium text-gray-500 hover:text-orange-600 hover:underline"
+                className="ml-1 text-xs font-medium text-muted hover:text-accent hover:underline"
               >
                 Clear skills
               </button>
             )}
             {cvStatus === "reading" && (
-              <span className="inline-flex items-center gap-1.5 text-xs text-gray-500">
-                <span className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500" />
+              <span className="inline-flex items-center gap-1.5 text-xs text-muted">
+                <span className="h-3 w-3 animate-spin rounded-full border-2 border-warm border-t-accent" />
                 Extracting skills from {cvName}…
               </span>
             )}
@@ -673,12 +690,12 @@ export default function Home() {
       )}
 
       {/* Controls — mobile: a Filters button that opens a bottom sheet */}
-      <div className="sm:hidden border-b border-gray-200 bg-white">
+      <div className="sm:hidden border-b border-warm bg-panel">
         <div className="mx-auto flex max-w-4xl items-center gap-3 px-3 py-2">
           <button
             type="button"
             onClick={() => setSheetOpen(true)}
-            className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 active:bg-gray-100"
+            className="inline-flex items-center gap-2 rounded-full border border-warm bg-white px-4 py-2 text-sm font-medium text-ink active:bg-accent-soft/50"
           >
             <svg
               aria-hidden
@@ -696,24 +713,24 @@ export default function Home() {
             </svg>
             Filters
             {activeFilters > 0 && (
-              <span className="rounded-full bg-[#ff6600] px-1.5 py-0.5 text-[11px] font-bold leading-none text-white">
+              <span className="rounded-full bg-accent px-1.5 py-0.5 text-[11px] font-bold leading-none text-white">
                 {activeFilters}
               </span>
             )}
           </button>
-          <span className="ml-auto text-sm text-gray-500">{resultCount}</span>
+          <span className="ml-auto text-sm text-muted">{resultCount}</span>
         </div>
       </div>
 
       {/* Controls — desktop: the inline filter row */}
-      <div className="hidden sm:block border-b border-gray-200 bg-gray-50">
-        <div className="mx-auto max-w-4xl px-4 py-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-700">
+      <div className="hidden sm:block border-b border-warm bg-panel">
+        <div className="mx-auto max-w-4xl px-4 py-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-ink">
           <label className="flex items-center gap-1">
-            <span className="text-gray-500">Sort</span>
+            <span className="text-muted">Sort</span>
             <select
               value={sort}
               onChange={(e) => setSort(e.target.value as SortMode)}
-              className="rounded border border-gray-300 bg-white px-1.5 py-1"
+              className="rounded border border-warm bg-white px-1.5 py-1"
             >
               {SORT_OPTS.map(([v, label]) => (
                 <option key={v} value={v}>
@@ -724,11 +741,11 @@ export default function Home() {
           </label>
 
           <label className="flex items-center gap-1">
-            <span className="text-gray-500">Company</span>
+            <span className="text-muted">Company</span>
             <select
               value={company}
               onChange={(e) => setCompany(e.target.value)}
-              className="rounded border border-gray-300 bg-white px-1.5 py-1 max-w-[14rem]"
+              className="rounded border border-warm bg-white px-1.5 py-1 max-w-[14rem]"
             >
               <option value="">All</option>
               {stats?.companies.map((c) => (
@@ -749,11 +766,11 @@ export default function Home() {
           )}
 
           <label className="flex items-center gap-1">
-            <span className="text-gray-500">Posted</span>
+            <span className="text-muted">Posted</span>
             <select
               value={days}
               onChange={(e) => chooseDays(Number(e.target.value))}
-              className="rounded border border-gray-300 bg-white px-1.5 py-1"
+              className="rounded border border-warm bg-white px-1.5 py-1"
             >
               {POSTED_OPTS.map(([v, label]) => (
                 <option key={v} value={v}>
@@ -764,19 +781,19 @@ export default function Home() {
           </label>
 
           {(company || city || skills.length > 0 || days) && (
-            <button onClick={clearAll} className="text-orange-600 hover:underline">
+            <button onClick={clearAll} className="text-accent hover:underline">
               Clear
             </button>
           )}
 
-          <span className="hidden lg:inline text-gray-400">
+          <span className="hidden lg:inline text-muted/80">
             tip: <code className="font-mono">&quot;exact&quot;</code> ·{" "}
             <code className="font-mono">a OR b</code> ·{" "}
             <code className="font-mono">-exclude</code> ·{" "}
             <code className="font-mono">title:engineer</code>
           </span>
 
-          <span className="ml-auto text-gray-500">
+          <span className="ml-auto text-muted">
             {outcome
               ? `${outcome.total.toLocaleString()} results (${outcome.ms.toFixed(1)} ms)`
               : ""}
@@ -808,7 +825,7 @@ export default function Home() {
 
         {outcome && outcome.total === 0 && (
           <div className="py-10 text-center">
-            <p className="text-gray-700">
+            <p className="font-serif text-lg text-ink">
               {allRefineOnly ? (
                 <>Add a primary skill to see matches</>
               ) : (
@@ -823,7 +840,7 @@ export default function Home() {
                 </>
               )}
             </p>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-muted">
               {allRefineOnly
                 ? `${refineOnlySkills.join(", ")} ${refineOnlySkills.length > 1 ? "only refine" : "only refines"} ranking — add a more specific skill to see matches.`
                 : activeFilters > 0
@@ -833,7 +850,7 @@ export default function Home() {
             {activeFilters > 0 && (
               <button
                 onClick={clearAll}
-                className="mt-4 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 active:bg-gray-100"
+                className="mt-4 rounded-lg border border-warm bg-panel px-4 py-2 text-sm font-medium text-ink hover:border-accent hover:text-accent active:bg-accent-soft/40"
               >
                 Clear all filters
               </button>
@@ -850,30 +867,32 @@ export default function Home() {
             return (
               <li
                 key={hit.id}
-                className="relative flex gap-4 rounded-xl border border-gray-200 bg-white p-4 leading-snug transition-colors active:bg-gray-50 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:active:bg-transparent"
+                className="relative flex gap-4 rounded-xl border border-warm bg-panel p-4 leading-snug shadow-sm transition-all hover:border-accent/60 hover:shadow-md active:bg-accent-soft/30"
               >
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-base font-medium sm:text-[15px]">
+                  <h2 className="text-base font-semibold sm:text-[15px]">
                     {hit.url ? (
                       <a
                         href={hit.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-gray-900 after:absolute after:inset-0 hover:text-orange-600 hover:underline"
+                        className="text-ink after:absolute after:inset-0 hover:text-accent hover:underline"
                       >
                         {highlight(hit.title, hit.terms)}
                       </a>
                     ) : (
-                      <span className="text-gray-900">{highlight(hit.title, hit.terms)}</span>
+                      <span className="text-ink">{highlight(hit.title, hit.terms)}</span>
                     )}
                   </h2>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13px] text-gray-500 sm:mt-0.5 sm:text-xs">
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13px] text-muted sm:mt-0.5 sm:text-xs">
                     {posted.isNew && (
                       <span className="rounded bg-green-100 px-1.5 py-0.5 text-[11px] font-semibold text-green-700">
                         New
                       </span>
                     )}
-                    <span className="font-medium text-orange-700">{hit.company}</span>
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-accent">
+                      {hit.company}
+                    </span>
                     {loc && <span>· {loc}</span>}
                     {type && <span>· {type}</span>}
                     {posted.label && <span>· {posted.label}</span>}
@@ -881,10 +900,10 @@ export default function Home() {
                   {desc === undefined ? (
                     <div
                       aria-hidden
-                      className="mt-1.5 h-3 w-11/12 animate-pulse rounded bg-gray-100 sm:mt-1"
+                      className="mt-1.5 h-3 w-11/12 animate-pulse rounded bg-warm/40 sm:mt-1"
                     />
                   ) : desc ? (
-                    <p className="mt-1.5 text-sm text-gray-700 sm:mt-1 sm:text-[13px]">
+                    <p className="mt-1.5 text-sm text-ink/80 sm:mt-1 sm:text-[13px]">
                       {highlight(snippet(desc, hit.terms), hit.terms)}
                     </p>
                   ) : null}
@@ -893,7 +912,7 @@ export default function Home() {
                       {hit.matched.map((m) => (
                         <span
                           key={m}
-                          className="rounded bg-orange-100 px-1.5 py-0.5 text-[11px] font-medium text-orange-800"
+                          className="rounded bg-accent-soft px-1.5 py-0.5 text-[11px] font-medium text-accent"
                         >
                           {m}
                         </span>
@@ -904,7 +923,7 @@ export default function Home() {
 
                 {hit.matched.length > 0 && (
                   <div className="hidden w-44 shrink-0 flex-col items-end gap-1 sm:flex">
-                    <span className="text-[11px] font-semibold text-gray-400">
+                    <span className="text-[11px] font-semibold text-muted">
                       {hit.matched.length} match
                       {hit.matched.length > 1 ? "es" : ""}
                     </span>
@@ -912,7 +931,7 @@ export default function Home() {
                       {hit.matched.map((m) => (
                         <span
                           key={m}
-                          className="rounded bg-orange-100 px-1.5 py-0.5 text-[11px] font-medium text-orange-800"
+                          className="rounded bg-accent-soft px-1.5 py-0.5 text-[11px] font-medium text-accent"
                         >
                           {m}
                         </span>
@@ -929,7 +948,7 @@ export default function Home() {
           <div className="mt-6 text-center">
             <button
               onClick={() => setLimit((l) => l + PAGE_SIZE)}
-              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-700 active:bg-gray-100 sm:w-auto sm:rounded sm:py-2 sm:hover:bg-gray-100"
+              className="w-full rounded-lg border border-warm bg-panel px-4 py-3 text-sm font-medium text-ink shadow-sm hover:border-accent hover:text-accent active:bg-accent-soft/40 sm:w-auto sm:py-2"
             >
               Show more ({(outcome.total - limit).toLocaleString()} remaining)
             </button>
@@ -937,7 +956,7 @@ export default function Home() {
         )}
       </main>
 
-      <footer className="border-t border-gray-200 py-4 text-center text-xs text-gray-400 [padding-bottom:calc(env(safe-area-inset-bottom)+1rem)] sm:pb-4">
+      <footer className="border-t border-warm py-4 text-center text-xs text-muted [padding-bottom:calc(env(safe-area-inset-bottom)+1rem)] sm:pb-4">
         Fully local · indexed from scraped company HTML · no external API
       </footer>
 
@@ -953,7 +972,7 @@ export default function Home() {
           onClick={() => setSheetOpen(false)}
         />
         <div
-          className="absolute inset-x-0 bottom-0 flex max-h-[88vh] flex-col rounded-t-2xl bg-white shadow-2xl transition-transform duration-300 will-change-transform"
+          className="absolute inset-x-0 bottom-0 flex max-h-[88vh] flex-col rounded-t-2xl bg-panel shadow-2xl transition-transform duration-300 will-change-transform"
           style={{
             transform: sheetOpen ? `translateY(${dragY}px)` : "translateY(100%)",
             transition: dragging ? "none" : undefined,
@@ -965,15 +984,15 @@ export default function Home() {
             onTouchEnd={onDragEnd}
           >
             <div className="flex justify-center pt-2.5">
-              <div className="h-1.5 w-10 rounded-full bg-gray-300" />
+              <div className="h-1.5 w-10 rounded-full bg-warm" />
             </div>
             <div className="flex items-center justify-between px-4 pt-1 pb-3">
-              <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
+              <h2 className="font-serif text-lg font-bold text-ink">Filters</h2>
               <button
                 type="button"
                 onClick={() => setSheetOpen(false)}
                 aria-label="Close filters"
-                className="-mr-1.5 rounded-full p-2 text-xl leading-none text-gray-500 active:bg-gray-100"
+                className="-mr-1.5 rounded-full p-2 text-xl leading-none text-muted active:bg-accent-soft/40"
               >
                 ✕
               </button>
@@ -982,13 +1001,13 @@ export default function Home() {
 
           <div className="flex-1 space-y-4 overflow-y-auto px-4 pb-4">
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted">
                 Sort
               </label>
               <select
                 value={sort}
                 onChange={(e) => setSort(e.target.value as SortMode)}
-                className="h-12 w-full rounded-xl border border-gray-300 bg-white px-3 text-base text-gray-900"
+                className="h-12 w-full rounded-xl border border-warm bg-panel px-3 text-base text-ink"
               >
                 {SORT_OPTS.map(([v, label]) => (
                   <option key={v} value={v}>
@@ -999,13 +1018,13 @@ export default function Home() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted">
                 Company
               </label>
               <select
                 value={company}
                 onChange={(e) => setCompany(e.target.value)}
-                className="h-12 w-full rounded-xl border border-gray-300 bg-white px-3 text-base text-gray-900"
+                className="h-12 w-full rounded-xl border border-warm bg-panel px-3 text-base text-ink"
               >
                 <option value="">All companies</option>
                 {stats?.companies.map((c) => (
@@ -1018,7 +1037,7 @@ export default function Home() {
 
             {stats && stats.cities.length > 0 && (
               <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted">
                   City
                 </label>
                 <CityFilter
@@ -1032,13 +1051,13 @@ export default function Home() {
             )}
 
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted">
                 Posted
               </label>
               <select
                 value={days}
                 onChange={(e) => chooseDays(Number(e.target.value))}
-                className="h-12 w-full rounded-xl border border-gray-300 bg-white px-3 text-base text-gray-900"
+                className="h-12 w-full rounded-xl border border-warm bg-panel px-3 text-base text-ink"
               >
                 {POSTED_OPTS.map(([v, label]) => (
                   <option key={v} value={v}>
@@ -1049,18 +1068,18 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="flex gap-3 border-t border-gray-200 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+          <div className="flex gap-3 border-t border-warm px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
             <button
               type="button"
               onClick={clearAll}
-              className="flex-1 rounded-xl border border-gray-300 py-3 text-base font-medium text-gray-700 active:bg-gray-100"
+              className="flex-1 rounded-xl border border-warm py-3 text-base font-medium text-ink active:bg-accent-soft/40"
             >
               Clear
             </button>
             <button
               type="button"
               onClick={() => setSheetOpen(false)}
-              className="flex-1 rounded-xl bg-[#ff6600] py-3 text-base font-semibold text-white active:bg-orange-600"
+              className="flex-1 rounded-xl bg-gradient-to-br from-accent to-accent-dark py-3 text-base font-semibold text-white shadow-sm active:opacity-90"
             >
               {outcome ? `Show ${outcome.total.toLocaleString()}` : "Show results"}
             </button>

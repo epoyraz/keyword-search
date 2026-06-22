@@ -17,7 +17,7 @@ export function highlight(text: string, terms: string[]): React.ReactNode {
   const parts = text.split(re);
   return parts.map((part, i) =>
     i % 2 === 1 ? (
-      <mark key={i} className="bg-orange-200 text-inherit rounded-sm">
+      <mark key={i} className="bg-accent-soft text-accent rounded-sm px-0.5">
         {part}
       </mark>
     ) : (

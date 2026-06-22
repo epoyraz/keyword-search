@@ -1,19 +1,43 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * Theme mirrors ../jobboard-web: warm cream canvas, teal accent, tan borders,
+ * Inter body + Source Serif headings. Colors are registered with Tailwind via
+ * @theme so they're available as utilities (bg-accent, text-ink, border-warm…).
+ */
+@theme {
+  --color-bg: #f6f2ea; /* warm cream page canvas */
+  --color-panel: #fffdf8; /* off-white card surface */
+  --color-ink: #1f2a33; /* primary text */
+  --color-muted: #6b7280; /* secondary text */
+  --color-warm: #e4d8c6; /* tan border */
+  --color-accent: #0f766e; /* teal */
+  --color-accent-dark: #0d9488;
+  --color-accent-light: #14b8a6;
+  --color-accent-soft: #ccfbf1; /* tint for chips/hover */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, sans-serif;
+  --font-serif: var(--font-source-serif), Georgia, "Times New Roman", serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  color: var(--color-ink);
+  background: var(--color-bg);
+  /* Two faint teal washes, same as jobboard-web's page backdrop. */
+  background-image:
+    radial-gradient(
+      ellipse at 20% 0%,
+      rgba(20, 184, 166, 0.08) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse at 80% 100%,
+      rgba(15, 118, 110, 0.06) 0%,
+      transparent 50%
+    );
+  background-attachment: fixed;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
