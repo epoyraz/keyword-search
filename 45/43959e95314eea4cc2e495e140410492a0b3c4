@@ -1,0 +1,57 @@
+lib/highlight.tsx
+  s_a4b931eacaab1f::t_448c7d785e34db 20
+app/globals.css
+  s_a4b931eacaab1f::t_885a6c6180b181 3-17,19-21,25-42
+app/CityFilter.tsx
+  s_a4b931eacaab1f::t_8e478e16363ad0 91,97-98,102,109-110,113,120
+  s_a4b931eacaab1f::t_d02c043ab09e29 127-128
+  s_a4b931eacaab1f::t_a88afdc18e5e2d 78-79
+  s_a4b931eacaab1f::t_decfb2726f4757 149
+  s_a4b931eacaab1f::t_fb14449609f829 140
+app/layout.tsx
+  s_a4b931eacaab1f::t_4a7d43213179c8 25
+  s_a4b931eacaab1f::t_b77a9193f2c164 80
+  s_a4b931eacaab1f::t_4285b103c66722 2,7-8,12-13
+app/page.tsx
+  s_a4b931eacaab1f::t_6f017556144917 600
+  s_a4b931eacaab1f::t_743083cb0cd616 1004,1021,1040,1054
+  s_a4b931eacaab1f::t_7185d8222595b5 1010,1027,1060
+  s_a4b931eacaab1f::t_4a421b51138911 1071,1075,1082
+  s_a4b931eacaab1f::t_a6ad79d2352c35 951,959
+  s_a4b931eacaab1f::t_4b3d69564467e7 563
+  s_a4b931eacaab1f::t_4616d63940f407 586
+  s_a4b931eacaab1f::t_a34a714f77a5ea 608
+  s_a4b931eacaab1f::t_cb74664c579c7c 620
+  s_a4b931eacaab1f::t_f2fc9293a0d9d6 693,698
+  s_a4b931eacaab1f::t_447d2167b1a8e9 870,873,879,884,887,893-895,903,906,915,926,934
+  s_a4b931eacaab1f::t_93ec9f6f4f5682 588-589
+  s_a4b931eacaab1f::t_2823e8bb8f3cf9 147,149-152
+  s_a4b931eacaab1f::t_630664548c24bf 127,133
+  s_a4b931eacaab1f::t_b192b524fd72a6 654,659,666,676,682-683
+  s_a4b931eacaab1f::t_e7f1d36117070f 975
+  s_a4b931eacaab1f::t_cbaed5eaf248e4 726-727,729,733,744,748
+  s_a4b931eacaab1f::t_432a4c5be54675 580
+  s_a4b931eacaab1f::t_f9ff30eb487961 716,721
+  s_a4b931eacaab1f::t_81d3ecd9f157e4 634
+  s_a4b931eacaab1f::t_adc57b52289e49 828,843,853
+  s_a4b931eacaab1f::t_262c9dc8eab706 542
+  s_a4b931eacaab1f::t_006b111726c3d5 480,482-500
+  s_a4b931eacaab1f::t_eedc2b7170223c 769,773,784,789,796
+  s_a4b931eacaab1f::t_7a03db5829b521 987,990,995
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "4543959e95314eea4cc2e495e140410492a0b3c4",
+  "prompts": {},
+  "sessions": {
+    "s_a4b931eacaab1f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c2844653-87d5-4846-843a-46fac9d10a2d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
