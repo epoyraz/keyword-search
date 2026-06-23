@@ -1,0 +1,23 @@
+.oxlintrc.json
+  s_a4b931eacaab1f::t_8de4d4bcf38202 12-17
+  s_a4b931eacaab1f::t_89bcbb4fffa85c 1-11,18-25
+package.json
+  s_a4b931eacaab1f::t_6ed435c7ddaac8 14
+  s_a4b931eacaab1f::t_eab84bf71cb856 29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.9",
+  "base_commit_sha": "42c13241446492ac8b51121c02aec7d32a6a08e8",
+  "prompts": {},
+  "sessions": {
+    "s_a4b931eacaab1f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c2844653-87d5-4846-843a-46fac9d10a2d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
