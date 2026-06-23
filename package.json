@@ -11,7 +11,7 @@
     "bench:wasm": "node --expose-gc scripts/bench-minisearch-vs-wasm.mjs",
     "bench:joined": "node --expose-gc scripts/bench-searchjoined.mjs",
     "test:match": "node scripts/test-term-matching.mjs",
-    "lint": "eslint"
+    "lint": "oxlint"
   },
   "dependencies": {
     "minisearch": "^7.2.0",
@@ -26,8 +26,7 @@
     "@types/node": "^26",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.2.9",
+    "oxlint": "^1.71.0",
     "tailwindcss": "^4",
     "typescript": "^6"
   }

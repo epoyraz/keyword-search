@@ -67,8 +67,6 @@ async function main() {
   const rust = MiniSearchWasm.loadBytes(rustMini.toBytes());
   const js = MiniSearch.loadJSON(jsIndexJson, miniSearchOptions());
 
-  const opts = { ...SEARCH_OPTIONS };
-
   // The real end-to-end app workload: produce [{id, score, terms}] for a query.
   const jsApp = (q) => {
     const res = js.search(q);
