@@ -1,0 +1,19 @@
+deploy/cloudbuild-app.yaml
+  s_a4b931eacaab1f::t_f845fbe51d4d43 3-6,8-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.13",
+  "base_commit_sha": "133b89933c90935e0175b64c1492deef6ac2bce3",
+  "prompts": {},
+  "sessions": {
+    "s_a4b931eacaab1f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c2844653-87d5-4846-843a-46fac9d10a2d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
