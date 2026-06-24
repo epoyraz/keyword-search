@@ -1,14 +1,30 @@
 # Daily rebuild+deploy of keyword-search. Run by the `keyword-search-deploy`
 # Cloud Run Job (triggered by the keyword-search-daily-deploy scheduler at
-# 05:00 UTC, 2h after the details scraper starts).
+# 05:00 UTC, 2h after the details scraper starts). The job runs
+# `gcloud builds submit --config` against the copy of this file at
+# gs://jobboard-data-exports/deploy/cloudbuild-app.yaml — keep that copy in sync
+# with this one (`gcloud storage cp deploy/cloudbuild-app.yaml gs://.../deploy/`).
 #
-# Source is a snapshot tarball in GCS (re-upload it when the app code changes:
-#   tar czf src.tgz --exclude=node_modules --exclude=.next --exclude=.git \
-#     --exclude='public/jobs.json*' --exclude=public/search-meta.json . && \
-#   gcloud storage cp src.tgz gs://jobboard-data-exports/deploy/keyword-search-src.tgz )
-# The image build runs `npm run index`, which downloads the latest
-# job_details.json, so the DATA is fresh on every run even though the source is
-# pinned.
+# The build pulls a frozen source snapshot from GCS and runs the Dockerfile,
+# whose `npm run index` re-downloads the latest job_details.json. So the DATA is
+# fresh on every run, but the CODE is pinned to the snapshot — a manual
+# `gcloud run deploy` is reverted by the next 05:00 run.
+#
+# When the app code changes, re-upload the snapshot from a clean checkout, then
+# (optionally) trigger an immediate redeploy:
+#
+#   tar -czf src.tgz \
+#     --exclude=./.git --exclude=./node_modules --exclude=./.next \
+#     --exclude=./private \
+#     --exclude='./public/jobs.json*' --exclude='./public/descriptions.json*' \
+#     --exclude='./public/search-index.bin*' --exclude=./public/search-meta.json \
+#     --exclude='*.log' --exclude='./.env*' .
+#   gcloud storage cp src.tgz gs://jobboard-data-exports/deploy/keyword-search-src.tgz
+#   gcloud run jobs execute keyword-search-deploy --region=europe-west1 --wait
+#
+# Exclude private/ (the gitignored CV — the previous command did NOT, baking it
+# into the image) and the big regenerated public/ data; the snapshot is code-only
+# (~150 KB). On Windows git-bash, add `--force-local` to the tar invocation.
 steps:
   - name: 'gcr.io/cloud-builders/gsutil'
     args: ['cp', 'gs://jobboard-data-exports/deploy/keyword-search-src.tgz', '/workspace/src.tgz']
