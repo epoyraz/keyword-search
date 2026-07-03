@@ -1,0 +1,19 @@
+README.md
+  s_55291276258039::t_30e734a50fa539 14-20,23-35,40-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "bc2e998068e43f422b5081d9ecfc1de2836935ee",
+  "prompts": {},
+  "sessions": {
+    "s_55291276258039": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fdab0e1b-609f-4a05-a2a7-a5bc369bf28c",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
