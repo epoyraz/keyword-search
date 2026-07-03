@@ -23,19 +23,53 @@ let jobs: Job[] = [];
 let byId = new Map<string, Job>();
 let mini: MiniSearchWasm | null = null;
 let version = "";
+// External doc id per internal short id (row n = short id n), fetched once
+// after loadBytes; resolves searchRaw's numeric doc ids to job ids.
+let idTable: string[] = [];
 
 // Descriptions are no longer in jobs.json — fetched on demand (and cached for
 // the session) only for the advanced operators that scan raw text. Plain term
 // queries never touch this. Absent id ⇒ known-empty description.
 const descCache = new Map<string, string>();
 
-// Shape returned by MiniSearchWasm.searchJoined: the whole result set as a
-// Float64Array of scores plus newline-joined id/term strings (split natively).
-interface JoinedResults {
+// The index is immutable after load (this worker never mutates it), so engine
+// results can be memoized for the whole session. Search-as-you-type re-issues
+// every committed skill and the full query on each keystroke; these caches
+// turn those repeats into map lookups.
+const exactIdsCache = new Map<string, Set<string>>();
+const phraseIdsCache = new Map<string, Set<string>>();
+const outcomeCache = new Map<string, { hits: Hit[]; refineOnly: string[] }>();
+const OUTCOME_CACHE_MAX = 16;
+
+// Shape returned by MiniSearchWasm.searchRaw: everything numeric — short doc
+// ids + scores as typed arrays, matched terms as ids into a small per-query
+// term table. Hit i's terms are termIds[termOffsets[i]..termOffsets[i+1]].
+interface RawResults {
   count: number;
-  ids: string;
+  docIds: Uint32Array;
   scores: Float64Array;
-  terms: string;
+  termTable: string;
+  termOffsets: Uint32Array;
+  termIds: Uint32Array;
+}
+
+// Exact whole-token doc-id set for one processed token (no prefix, no fuzzy),
+// memoized for the session. Used for short committed skills and phrase tokens.
+function exactIdSet(token: string, combineWith: "OR" | "AND"): Set<string> {
+  const cache = combineWith === "AND" ? phraseIdsCache : exactIdsCache;
+  const hit = cache.get(token);
+  if (hit) return hit;
+  const set = new Set<string>();
+  if (mini) {
+    const r = mini.searchRaw(token, {
+      prefix: false,
+      fuzzy: false,
+      combineWith,
+    }) as RawResults;
+    for (let i = 0; i < r.count; i++) set.add(idTable[r.docIds[i]]);
+  }
+  cache.set(token, set);
+  return set;
 }
 
 let resolveLoaded!: () => void;
@@ -77,6 +111,7 @@ async function load(v0: string) {
   const indexBytes = new Uint8Array(await idxRes.arrayBuffer());
   await init();
   mini = MiniSearchWasm.loadBytes(indexBytes);
+  idTable = mini.docIdTable().split("\n");
   resolveLoaded();
   post({ type: "ready" });
 }
@@ -237,9 +272,30 @@ function clauseMatches(job: Job, c: Clause): boolean {
 
 async function search(
   query: string,
-  { sort, filters }: { sort: SortMode; filters: Filters },
+  { sort, filters, limit }: { sort: SortMode; filters: Filters; limit?: number },
 ): Promise<SearchOutcome> {
   const start = performance.now();
+
+  // Full outcomes are deterministic per (query, sort, filters) on the
+  // immutable index, so repeats (every keystroke re-runs committed skills;
+  // "Show more" re-requests with a higher limit) are cache hits.
+  const cacheKey = [
+    query,
+    sort,
+    filters.company ?? "",
+    filters.city ?? "",
+    filters.postedAfter ?? "",
+  ].join("");
+  const cached = outcomeCache.get(cacheKey);
+  if (cached) {
+    return {
+      hits: limit == null ? cached.hits : cached.hits.slice(0, limit),
+      total: cached.hits.length,
+      ms: performance.now() - start,
+      refineOnly: cached.refineOnly,
+    };
+  }
+
   const { clauses, orMode } = parseAdvanced(query.trim());
 
   let hits: Hit[];
@@ -300,49 +356,37 @@ async function search(
     const wasmHits = new Map<string, { score: number; terms: string[] }>();
     if (normalQ.length && mini) {
       // Everything (tokenize, prefix/fuzzy, BM25, ranking) runs in wasm; the
-      // result set comes back columnar and is decoded here.
-      const r = mini.searchJoined(normalQ.join(" "), orMode) as JoinedResults;
-      if (r.count) {
-        const ids = r.ids.split("\n");
-        const termRows = r.terms.split("\n");
-        for (let i = 0; i < r.count; i++) {
-          wasmHits.set(ids[i], {
-            score: r.scores[i],
-            terms: termRows[i] ? termRows[i].split(" ") : [],
-          });
+      // result set comes back as typed arrays plus one small interned term
+      // table — decoded here against the one-time id table.
+      const r = mini.searchRaw(
+        normalQ.join(" "),
+        orMode ? { combineWith: "OR" } : undefined,
+      ) as RawResults;
+      const termTable = r.termTable ? r.termTable.split("\n") : [];
+      for (let i = 0; i < r.count; i++) {
+        const terms: string[] = [];
+        for (let k = r.termOffsets[i]; k < r.termOffsets[i + 1]; k++) {
+          terms.push(termTable[r.termIds[k]]);
         }
+        wasmHits.set(idTable[r.docIds[i]], { score: r.scores[i], terms });
       }
     }
 
-    // Exact, whole-token doc sets for the short tokens.
+    // Exact, whole-token doc sets for the short tokens (session-memoized).
     const exactIds = new Map<string, Set<string>>();
-    if (shortQ.length && mini) {
-      for (const t of shortQ) {
-        const res = mini.search(t, {
-          prefix: false,
-          fuzzy: false,
-          combineWith: "OR",
-        }) as Array<{ id: string }>;
-        exactIds.set(t, new Set(res.map((r) => r.id)));
-      }
+    for (const t of shortQ) {
+      exactIds.set(t, exactIdSet(t, "OR"));
     }
     const shortMatches = (jobId: string, t: string): boolean =>
       exactIds.get(t)?.has(jobId) ?? false;
 
     // Multiword skills must match as a unit. Their tokens are kept OUT of the wasm
     // query above (so "REST APIs" can't prefix-flood via "rest"→"Restaurant");
-    // instead each phrase resolves to the jobs that contain ALL its tokens exactly.
-    // (AND mode additionally confirms adjacency in the loop below.)
+    // instead each phrase resolves to the jobs that contain ALL its tokens exactly
+    // (session-memoized). (AND mode additionally confirms adjacency below.)
     const phraseHits = new Map<string, Set<string>>();
-    if (phraseClauses.length && mini) {
-      for (const c of phraseClauses) {
-        const res = mini.search(c.value, {
-          prefix: false,
-          fuzzy: false,
-          combineWith: "AND",
-        }) as Array<{ id: string }>;
-        phraseHits.set(c.value, new Set(res.map((r) => r.id)));
-      }
+    for (const c of phraseClauses) {
+      phraseHits.set(c.value, exactIdSet(c.value, "AND"));
     }
     // Specificity gate: a skill on a large share of the corpus (the Swiss
     // credential "EFZ", or "Betreuung"/"Verkauf") floods the OR, so it refines
@@ -508,7 +552,21 @@ async function search(
     }
   }
 
-  return { hits, total: hits.length, ms: performance.now() - start - fetchMs, refineOnly };
+  // Cache the full outcome (bounded FIFO), post only the requested slice —
+  // broad queries produce thousands of hits, and structured-cloning them all
+  // to the main thread per keystroke costs more than the search itself.
+  if (outcomeCache.size >= OUTCOME_CACHE_MAX) {
+    const oldest = outcomeCache.keys().next().value;
+    if (oldest !== undefined) outcomeCache.delete(oldest);
+  }
+  outcomeCache.set(cacheKey, { hits, refineOnly });
+
+  return {
+    hits: limit == null ? hits : hits.slice(0, limit),
+    total: hits.length,
+    ms: performance.now() - start - fetchMs,
+    refineOnly,
+  };
 }
 
 ctx.onmessage = async (e: MessageEvent<WorkerRequest>) => {

@@ -418,7 +418,9 @@ export default function Home() {
     setLimit(PAGE_SIZE);
   }
 
-  // Run the search in the worker whenever inputs change; ignore stale responses.
+  // Run the search in the worker whenever inputs change; ignore stale
+  // responses. Only `limit` hits cross the worker boundary (the worker caches
+  // the full outcome, so "Show more" re-requests are instant cache hits).
   useEffect(() => {
     if (!ready) return;
     let cancelled = false;
@@ -426,13 +428,14 @@ export default function Home() {
       query: searchQuery,
       sort,
       filters: { company, city, postedAfter },
+      limit,
     }).then((o) => {
       if (!cancelled) setOutcome(o);
     });
     return () => {
       cancelled = true;
     };
-  }, [ready, searchQuery, sort, company, city, postedAfter]);
+  }, [ready, searchQuery, sort, company, city, postedAfter, limit]);
 
   // Lazily fetch descriptions for the visible slice (id-cached across queries —
   // raw text doesn't depend on the query, only the highlight terms do).

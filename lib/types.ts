@@ -50,6 +50,12 @@ export interface SearchArgs {
   query: string;
   sort: SortMode;
   filters: Filters;
+  /**
+   * How many hits to return (`total` still reports the full count). The worker
+   * caches the full outcome, so raising the limit ("Show more") is a cache hit
+   * that just returns a bigger slice. Omitted ⇒ all hits.
+   */
+  limit?: number;
 }
 
 /** Index metadata, computed at build time and shipped as a tiny meta file. */
