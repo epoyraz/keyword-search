@@ -1,0 +1,21 @@
+package.json
+  s_a4b931eacaab1f::t_bf08b5eefb3aac 18
+package-lock.json
+  s_a4b931eacaab1f::t_01575a80b5ff69 12,2124-2126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.9",
+  "base_commit_sha": "4898936f0bd521d45708aaecb27e68a21e2961e9",
+  "prompts": {},
+  "sessions": {
+    "s_a4b931eacaab1f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c2844653-87d5-4846-843a-46fac9d10a2d",
+        "model": "unknown"
+      },
+      "human_author": "Enes Poyraz <epoyraz.eth@googlemail.com>"
+    }
+  }
+}
