@@ -55,30 +55,25 @@ npm run dev     # http://localhost:3000
 
 For a production build: `npm run build && npm start`.
 
-## Local search engine benchmark
+## Local search engine benchmarks
 
-Compare the current JavaScript MiniSearch index against the local Rust/Wasm
-prototype in `../../minisearch-rust/pkg`:
-
-```bash
-npm run bench:search
-```
-
-Optional knobs:
+Compare the installed JavaScript `minisearch` against the installed
+`minisearch-wasm` over the real corpus and the prebuilt binary index:
 
 ```bash
-BENCH_WARMUP=10 BENCH_ITERS=40 npm run bench:search
+npm run bench:wasm     # full comparison: load, build, search latency + correctness gate
+npm run bench:joined   # searchJoined identity proof (ids/scores/terms) + latency
+npm run profile        # stage profiler: exact vs prefix vs fuzzy vs boundary vs decode
 ```
 
-The benchmark measures index construction/loading, result overlap, query
-latency over representative job-search queries, and separate Rust result shapes:
+Optional knobs: `BENCH_WARMUP`/`BENCH_ITERS`/`BENCH_TOPK` for the benches,
+`PROF_WARMUP`/`PROF_ITERS` for the profiler.
 
-- `Rust/Wasm` keeps the full MiniSearch-compatible result object.
-- `Rust compact` returns `{ id, score, terms }` objects.
-- `Rust packed` returns parallel `{ ids, scores, terms }` arrays and is the
-  intended worker replacement path.
-
-Treat speed numbers as valid only if the overlap section stays high.
+All three repeat each query many times, so engine numbers reflect the warm
+expansion-cache path (representative of search-as-you-type; a query's first
+run is slower). Treat speed numbers as valid only if the correctness /
+agreement section stays clean — the benches verify the two engines return
+identical result sets and scores before timing them.
 
 ## Notes
 

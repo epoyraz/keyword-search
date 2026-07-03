@@ -1,18 +1,26 @@
-// Focused profiler: isolates search-compute from boundary/serialization cost.
-// Loads the Rust index once (loadBytes) and JS index once (loadJSON), then
-// times each path over the shared query set with heavy warmup + iterations.
+// Focused profiler: where does a query's time actually go? Loads the prebuilt
+// binary index (public/search-index.bin) into the installed minisearch-wasm
+// package and times each stage over the shared query set — exact scoring,
+// +prefix expansion, +fuzzy expansion, the searchJoined boundary, JS-side
+// decode, and the searchRaw typed-array path — plus the JS MiniSearch app path
+// for reference. Iterations repeat the same queries, so engine numbers show
+// the warm expansion-cache path (representative of search-as-you-type; the
+// first run of a query is slower).
+//
+// Run: npm run profile   (or: node --expose-gc scripts/profile-search.mjs)
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { performance } from "node:perf_hooks";
 import MiniSearch from "minisearch";
-import { SEARCH_FIELDS, SEARCH_OPTIONS, miniSearchOptions } from "../lib/searchConfig.mjs";
+import init, { MiniSearchWasm } from "minisearch-wasm";
+import { miniSearchOptions } from "../lib/searchConfig.mjs";
+import { loadFullDocs } from "./loadDocs.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
-const RUST_PKG = path.resolve(ROOT, "..", "..", "minisearch-rust", "pkg");
-const JOBS_FILE = path.resolve(ROOT, "public", "jobs.json");
-const JS_INDEX_FILE = path.resolve(ROOT, "public", "search-index.json");
+const INDEX_BIN = path.resolve(ROOT, "public", "search-index.bin");
+const WASM_FILE = path.resolve(ROOT, "node_modules", "minisearch-wasm", "minisearch_wasm_bg.wasm");
 
 const QUERY_SET = [
   "software engineer", "data engineer", "project manager", "product manager",
@@ -43,39 +51,40 @@ function bench(label, fn) {
       const t = performance.now();
       const r = fn(q);
       samples.push(performance.now() - t);
-      checksum += typeof r === "number" ? r : Array.isArray(r) ? r.length : r.ids.length;
+      checksum += typeof r === "number" ? r : Array.isArray(r) ? r.length : (r.count ?? 0);
     }
   }
   const s = summarize(samples);
   console.log(
-    `${label.padEnd(22)} mean ${s.mean.toFixed(3)}ms  median ${s.median.toFixed(3)}ms  p95 ${s.p95.toFixed(3)}ms  checksum ${checksum}`,
+    `${label.padEnd(30)} mean ${s.mean.toFixed(4)}ms  median ${s.median.toFixed(4)}ms  p95 ${s.p95.toFixed(4)}ms  checksum ${checksum}`,
   );
   return s;
 }
 
 async function main() {
   console.log(`profiler — queries ${QUERY_SET.length}, warmup ${WARMUP}, iters ${ITERS}`);
-  const jsIndexJson = await readFile(JS_INDEX_FILE, "utf8");
-  const rustModule = await import(pathToFileURL(path.resolve(RUST_PKG, "minisearch_rust.js")).href);
-  await rustModule.default({ module_or_path: await readFile(path.resolve(RUST_PKG, "minisearch_rust_bg.wasm")) });
-  const { MiniSearchWasm } = rustModule;
 
-  const jobsJson = await readFile(JOBS_FILE, "utf8");
-  const rustOptions = { idField: "id", fields: SEARCH_FIELDS, tokenizer: "jobboard", searchOptions: SEARCH_OPTIONS };
-  const rustMini = new MiniSearchWasm(rustOptions);
-  rustMini.addAllJSON(jobsJson);
-  const rust = MiniSearchWasm.loadBytes(rustMini.toBytes());
-  const js = MiniSearch.loadJSON(jsIndexJson, miniSearchOptions());
+  const [{ jobs }, indexBin, wasmBin] = await Promise.all([
+    loadFullDocs(path.resolve(ROOT, "public")),
+    readFile(INDEX_BIN),
+    readFile(WASM_FILE),
+  ]);
+  await init({ module_or_path: wasmBin });
+  const wasm = MiniSearchWasm.loadBytes(new Uint8Array(indexBin));
+  const idTable = wasm.docIdTable().split("\n");
 
-  // The real end-to-end app workload: produce [{id, score, terms}] for a query.
+  const js = new MiniSearch(miniSearchOptions());
+  js.addAll(jobs);
+
+  // The end-to-end app workload: produce [{id, score, terms}] for a query.
   const jsApp = (q) => {
     const res = js.search(q);
     const out = new Array(res.length);
     for (let i = 0; i < res.length; i++) out[i] = { id: res[i].id, score: res[i].score, terms: res[i].terms };
     return out;
   };
-  const rustApp = (q) => {
-    const r = rust.searchJoined(q, false);
+  const wasmJoined = (q) => {
+    const r = wasm.searchJoined(q, false);
     const out = new Array(r.count);
     if (!r.count) return out;
     const ids = r.ids.split("\n");
@@ -83,16 +92,37 @@ async function main() {
     for (let i = 0; i < r.count; i++) out[i] = { id: ids[i], score: r.scores[i], terms: rows[i] ? rows[i].split(" ") : [] };
     return out;
   };
+  // The worker's actual path since 0.8.0: typed arrays + one interned term table.
+  const wasmRaw = (q) => {
+    const r = wasm.searchRaw(q);
+    const termTable = r.termTable ? r.termTable.split("\n") : [];
+    const out = new Array(r.count);
+    for (let i = 0; i < r.count; i++) {
+      const terms = [];
+      for (let k = r.termOffsets[i]; k < r.termOffsets[i + 1]; k++) terms.push(termTable[r.termIds[k]]);
+      out[i] = { id: idTable[r.docIds[i]], score: r.scores[i], terms };
+    }
+    return out;
+  };
+
+  console.log("\n--- engine stages (hit count only; isolates compute) ---");
+  bench("exact scoring only", (q) => wasm.searchCountOpts(q, false, false));
+  bench("+ prefix expansion", (q) => wasm.searchCountOpts(q, true, false));
+  const engine = bench("+ prefix + fuzzy (full)", (q) => wasm.searchCountOpts(q, true, true));
+
+  console.log("\n--- boundary + decode ---");
+  bench("searchJoined (no decode)", (q) => wasm.searchJoined(q, false));
+  bench("searchRaw (no decode)", (q) => wasm.searchRaw(q));
+
+  console.log("\n--- app workload ({id, score, terms} per hit) ---");
+  const jsS = bench("JS MiniSearch", jsApp);
+  const joinedS = bench("wasm searchJoined + decode", wasmJoined);
+  const rawS = bench("wasm searchRaw + decode", wasmRaw);
 
   console.log("");
-  const jsAppS = bench("JS app path", jsApp);
-  const rustAppS = bench("Rust app (joined)", rustApp);
-  const jsFull = bench("JS full search", (q) => js.search(q));
-  const countOnly = bench("Rust engine only", (q) => rust.searchCountDefault(q, false));
-
-  console.log("");
-  console.log(`APP PATH   JS / Rust(joined):  mean ${(jsAppS.mean / rustAppS.mean).toFixed(2)}x  median ${(jsAppS.median / rustAppS.median).toFixed(2)}x`);
-  console.log(`ENGINE     JS full / Rust engine-only: mean ${(jsFull.mean / countOnly.mean).toFixed(2)}x  median ${(jsFull.median / countOnly.median).toFixed(2)}x`);
+  console.log(`engine share of raw path:  ${((engine.mean / rawS.mean) * 100).toFixed(0)}%`);
+  console.log(`APP  JS / wasm joined:  mean ${(jsS.mean / joinedS.mean).toFixed(2)}x  median ${(jsS.median / joinedS.median).toFixed(2)}x`);
+  console.log(`APP  JS / wasm raw:     mean ${(jsS.mean / rawS.mean).toFixed(2)}x  median ${(jsS.median / rawS.median).toFixed(2)}x`);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
